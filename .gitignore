@@ -1,0 +1,17 @@
+# Executables
+*.exe
+*.out
+*.app
+
+# Object files
+*.o
+*.obj
+*.so
+*.a
+*.dylib
+
+# Editor backup / temporary files
+*~
+*.swp
+*.swo
+.DS_Store

@@ -13,25 +13,27 @@ flags.DEFINE_string('server_IP', '127.0.0.1', 'The server IP address.')
 flags.DEFINE_integer('server_port', 8080, 'Port the server is listening on.')
 flags.DEFINE_string('name', 'Findlay', 'Name to send to the server.')
 
+
 def send_payload(client_socket: socket.socket) -> None:
     payload = FLAGS.name
     print(f"Sending: {payload}")
     payload_bytes = payload.encode('utf-8')
     header = struct.pack('!I', len(payload_bytes))
-    try: 
+    try:
         client_socket.sendall(header)
         client_socket.sendall(payload_bytes)
     except Exception as e:
         raise
 
+
 def read_server_response(client_socket) -> str:
     size_header = client_socket.recv(4)
     if len(size_header) < 4:
         raise RuntimeError("Failed to read server header")
-    
+
     payload_size = struct.unpack('!I', size_header)[0]
     print(f"Server says payload size will be: {payload_size} bytes")
-    
+
     response_bytes = b""
     while len(response_bytes) < payload_size:
         try:
@@ -41,11 +43,9 @@ def read_server_response(client_socket) -> str:
             response_bytes += packet
         except Exception as e:
             raise
-    
+
     response_text = response_bytes.decode('utf-8')
     return response_text
-
-
 
 
 def main(argv: list[str]) -> None:

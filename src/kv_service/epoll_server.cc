@@ -16,8 +16,8 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 
 namespace kvstore {
@@ -38,7 +38,7 @@ absl::StatusOr<std::vector<char>> ReadClientPayload(int payload_len,
     if (n == 0) {
       close(client_fd);
       return absl::InternalError(
-          absl::StrFormat("Dropped client fd %d mid stream.\n"));
+          absl::StrFormat("Dropped client fd %d mid stream."));
     }
 
     // if data isnt here yet, spin for 10 microseconds since we are expecting
@@ -103,7 +103,7 @@ absl::Status EpollServer::Start() {
   }
 
   is_running_ = true;
-  std::cout << absl::StrFormat("Listening on port %d ... /n", port_);
+  LOG(INFO) << absl::StrFormat("Succesfully listening on port %d ...", port_);
   return absl::OkStatus();
 }
 
@@ -211,7 +211,7 @@ absl::Status EpollServer::HandleClientRead(int client_fd) {
         errno, absl::StrFormat("Fatal read on client fd %d", client_fd));
 
   } else if (bytes_recieved == 0) {
-    LOG(INFO) << "Client FD " << client_fd << " disconnected cleanly.\n";
+    LOG(INFO) << "Client FD " << client_fd << " disconnected cleanly.";
     close(client_fd);
     return absl::OkStatus();
   }

@@ -1,0 +1,35 @@
+#include <functional>
+#include <string>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/status_macros.h"
+#include "absl/strings/str_cat.h"
+#include "src/kv_service/consts.h"
+#include "src/kv_service/epoll_server.h"
+
+using namespace kvstore;
+
+absl::Status StartAndRunServer() {
+  std::function<std::string(const std::string&)> greeting =
+      [](const std::string& name) -> std::string {
+    return absl::StrCat("Hello %s", name);
+  };
+
+  EpollServer server(PORT, greeting);
+
+  ABSL_RETURN_IF_ERROR(server.Start());
+  ABSL_RETURN_IF_ERROR(server.RunLoop());
+
+  return absl::OkStatus();
+}
+
+int main() {
+  absl::Status status = StartAndRunServer();
+  if (!status.ok()) {
+    LOG(ERROR) << "Server exited premeturly\n";
+    return 1;
+  }
+
+  return 0;
+}

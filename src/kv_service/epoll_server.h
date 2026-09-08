@@ -1,7 +1,12 @@
 #ifndef KVSTORE_SRC_SERVICE_EPOLL_SERVER_H_
 #define KVSTORE_SRC_SERVICE_EPOLL_SERVER_H_
 
+#include <sys/epoll.h>
+
 #include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include "absl/status/status.h"
 
@@ -14,8 +19,8 @@ class EpollServer {
   using MessageHandler = std::function<std::string(const std::string&)>;
 
   explicit EpollServer(int port, MessageHandler handler, bool local_only = true)
-      : port_(port),
-        message_handler_(std::move(handler)),
+      : message_handler_(std::move(handler)),
+        port_(port),
         local_only_(local_only) {};
 
   ~EpollServer();
@@ -34,7 +39,7 @@ class EpollServer {
   // Set a socket file descriptor to non-blocking
   absl::Status SetNonBlocking(int fd);
 
-  // Process all active events either accepting a new client connection 
+  // Process all active events either accepting a new client connection
   // or reading from an existing client
   void ProcessActiveEpollEvents(const std::vector<epoll_event>& events,
                                 int num_fds);

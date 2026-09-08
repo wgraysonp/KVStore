@@ -1,3 +1,7 @@
+# Bazel links
+bazel-*
+MODULE.bazel.lock
+
 # Executables
 *.exe
 *.out

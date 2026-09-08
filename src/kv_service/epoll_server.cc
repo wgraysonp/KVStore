@@ -13,10 +13,10 @@
 #include <string>
 #include <vector>
 
-#include "absl/base/internal/strerror.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/status/status_macros.h"
 #include "absl/strings/str_format.h"
 
@@ -26,7 +26,7 @@ namespace {
 absl::StatusOr<std::vector<char>> ReadClientPayload(int payload_len,
                                                     int client_fd) {
   std::vector<char> payload(payload_len);
-  size_t total_read = 0;
+  int total_read = 0;
   while (total_read < payload_len) {
     ssize_t n = recv(client_fd, payload.data() + total_read,
                      payload_len - total_read, 0);
@@ -50,9 +50,9 @@ absl::StatusOr<std::vector<char>> ReadClientPayload(int payload_len,
 
     // n < 0 and errno is not EAGAIN or EWOULDBLOCK - fatal system error
     close(client_fd);
-    return absl::InternalError(
-        absl::StrFormat("Dropped client fd %d mid payload read. errno: %s.\n",
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(
+        errno,
+        absl::StrFormat("Dropped client fd %d mid payload read", client_fd));
   }
 
   return payload;
@@ -64,16 +64,12 @@ EpollServer::~EpollServer() { Stop(); }
 absl::Status EpollServer::Start() {
   listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_fd_ < 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to open server socket. errno: %s",
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(errno, "Failed to open server socket");
   }
 
   int opt = 1;
   if (setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to set SO_REUSEADDR. errno: %s",
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(errno, "Failed to set SO_REUSEADDR");
   }
 
   sockaddr_in server_addr{};
@@ -84,33 +80,26 @@ absl::Status EpollServer::Start() {
 
   if (bind(listen_fd_, (struct sockaddr*)&server_addr, sizeof(server_addr)) <
       0) {
-    return absl::InternalError(absl::StrFormat(
-        "Failed to bind to port %d. Port may be in use. errno: %s", port_,
-        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Failed to bind to port %d", port_));
   }
 
   if (listen(listen_fd_, 128) < 0) {
-    return absl::InternalError(
-        absl::StrFormat("Listen command failed. errno: %s",
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(errno, "Listen command failed");
   }
 
   ABSL_RETURN_IF_ERROR(SetNonBlocking(listen_fd_));
 
   epoll_fd_ = epoll_create1(0);
   if (epoll_fd_ < 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to create epoll instance. errno: %s",
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(errno, "Failed to create epoll instance");
   }
 
   epoll_event ev{};
   ev.events = EPOLLIN;
   ev.data.fd = listen_fd_;
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listen_fd_, &ev) < 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to register listen_fd to epoll. errno: %s",
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(errno, "Failed to register listen_fd to epoll");
   }
 
   is_running_ = true;
@@ -126,8 +115,7 @@ absl::Status EpollServer::RunLoop() {
     if (num_fds < 0) {
       // if the wait loop is interupted by an OS signal its not fatal
       if (errno == EINTR) continue;
-      return absl::InternalError(absl::StrFormat(
-          "Epoll failed. errno: %s", absl::base_internal::StrError(errno)));
+      return absl::ErrnoToStatus(errno, "Epoll failed");
     }
 
     ProcessActiveEpollEvents(events, num_fds);
@@ -150,14 +138,13 @@ void EpollServer::Stop() {
 absl::Status EpollServer::SetNonBlocking(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
   if (flags == -1) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to read flags for descriptor %d. errno: %s", fd,
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Failed to read flags for descriptor %d", fd));
   }
   if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-    return absl::InternalError(absl::StrFormat(
-        "Failed to write O_NONBLOCK flag for descriptor %d. errno: %s", fd,
-        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat(
+                   "Failed to write O_NONBLOCK flag for descriptor %d", fd));
   }
   return absl::OkStatus();
 }
@@ -191,8 +178,7 @@ absl::Status EpollServer::AcceptNewConnection() {
   int client_fd =
       accept(listen_fd_, (struct sockaddr*)&client_addr, &client_len);
   if (client_fd < 0) {
-    return absl::InternalError(absl::StrFormat(
-        "Accept failed. errno: %s", absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(errno, "Accept failed");
   }
 
   auto close_fd = absl::MakeCleanup([client_fd]() { close(client_fd); });
@@ -204,9 +190,9 @@ absl::Status EpollServer::AcceptNewConnection() {
   client_ev.data.fd = client_fd;
 
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_fd, &client_ev) < 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to track client fd %d in epoll tree. errno: %s",
-                        client_fd, absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Failed to track client fd %d in epoll tree",
+                               client_fd));
   }
 
   std::move(close_fd).Cancel();
@@ -221,9 +207,9 @@ absl::Status EpollServer::HandleClientRead(int client_fd) {
       return absl::OkStatus();
     }
     close(client_fd);
-    return absl::InternalError(
-        absl::StrFormat("Fatal read on client fd %d. errno: %s", client_fd,
-                        absl::base_internal::StrError(errno)));
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Fatal read on client fd %d", client_fd));
+
   } else if (bytes_recieved == 0) {
     LOG(INFO) << "Client FD " << client_fd << " disconnected cleanly.\n";
     close(client_fd);

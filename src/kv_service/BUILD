@@ -5,6 +5,7 @@ cc_library(
     name = "epoll_server",
     srcs = ["epoll_server.cc"],
     hdrs = ["epoll_server.h"],
+    visibility = ["//src/kv_service/tests:__pkg__"],
     deps = [
         "@abseil-cpp//absl/cleanup:cleanup",
         "@abseil-cpp//absl/log:log",

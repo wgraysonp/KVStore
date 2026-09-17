@@ -19,3 +19,7 @@ MODULE.bazel.lock
 *.swp
 *.swo
 .DS_Store
+
+# generated settings
+compile_commands.json
+.vscode/*

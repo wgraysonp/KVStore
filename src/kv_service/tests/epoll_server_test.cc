@@ -144,6 +144,10 @@ TEST_F(EpollServerTest, ServerHandlesMultipleClientConnections) {
     expected_results[i].response = std::move(response);
 
     clients.emplace_back([this, i, client_fd, message, &results]() {
+      // force the thread to sleep so that we can saturate the epoll
+      // tree with multiple connections before the threads can disconnect
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
       uint32_t message_len = htonl(static_cast<uint32_t>(message.size()));
       send(client_fd, &message_len, 4, 0);
       send(client_fd, message.data(), message.size(), 0);
@@ -156,8 +160,7 @@ TEST_F(EpollServerTest, ServerHandlesMultipleClientConnections) {
 
       std::vector<char> resp(header_size);
 
-      uint32_t bytes_recieved =
-          recv(client_fd, resp.data(), header_size, 0);
+      uint32_t bytes_recieved = recv(client_fd, resp.data(), header_size, 0);
 
       results[i].header_byte_size = header_byte_size;
       results[i].header_size = header_size;
@@ -168,20 +171,19 @@ TEST_F(EpollServerTest, ServerHandlesMultipleClientConnections) {
     });
   }
 
-  for (auto &t : clients){
-    if (t.joinable()){
+  for (auto& t : clients) {
+    if (t.joinable()) {
       t.join();
     }
   }
 
-  for (int i = 0; i < num_clients; i++){
+  for (int i = 0; i < num_clients; i++) {
     SCOPED_TRACE("Evaluating results for Client Index: " + std::to_string(i));
 
-    EXPECT_EQ(results[i].header_byte_size, expected_results[i].header_byte_size);
+    EXPECT_EQ(results[i].header_byte_size,
+              expected_results[i].header_byte_size);
     EXPECT_EQ(results[i].header_size, expected_results[i].header_size);
     EXPECT_EQ(results[i].bytes_received, expected_results[i].bytes_received);
     EXPECT_EQ(results[i].response, expected_results[i].response);
-
   }
-
 }

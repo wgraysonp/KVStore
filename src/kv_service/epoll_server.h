@@ -52,7 +52,9 @@ class EpollServer {
   absl::Status AcceptNewConnection();
 
   // Handle data coming from an existing client connection
-  absl::Status HandleClientRead(int client_fd);
+  absl::Status HandleCurrentConnection(int client_fd);
+
+  absl::Status HandleClientWrite(int client_fd, const std::string& response);
 
   MessageHandler message_handler_;
   int port_;

@@ -159,7 +159,8 @@ void EpollServer::ProcessActiveEpollEvents(
                    << status.message();
       }
     } else {
-      if (absl::Status status = HandleClientRead(active_fd); !status.ok()) {
+      if (absl::Status status = HandleCurrentConnection(active_fd);
+          !status.ok()) {
         LOG(ERROR) << "Client read failed. Error message: " << status.message();
       }
     }
@@ -199,7 +200,7 @@ absl::Status EpollServer::AcceptNewConnection() {
   return absl::OkStatus();
 }
 
-absl::Status EpollServer::HandleClientRead(int client_fd) {
+absl::Status EpollServer::HandleCurrentConnection(int client_fd) {
   char length_buf[4];
   ssize_t bytes_recieved = recv(client_fd, length_buf, 4, 0);
   if (bytes_recieved < 0) {
@@ -230,9 +231,36 @@ absl::Status EpollServer::HandleClientRead(int client_fd) {
   std::string command(payload.begin(), payload.end());
   std::string response = message_handler_(command);
 
+  return HandleClientWrite(client_fd, response);
+}
+
+absl::Status EpollServer::HandleClientWrite(int client_fd,
+                                            const std::string& response) {
   uint32_t response_len_net = htonl(static_cast<uint32_t>(response.size()));
-  send(client_fd, &response_len_net, 4, 0);
-  send(client_fd, response.data(), response.size(), 0);
+
+  ssize_t header_bytes_sent =
+      send(client_fd, &response_len_net, 4, MSG_NOSIGNAL);
+
+  if (header_bytes_sent < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return absl::OkStatus();
+    }
+    close(client_fd);
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Fatal read on client fd %d", client_fd));
+  }
+
+  ssize_t message_bytes_sent =
+      send(client_fd, response.data(), response.size(), MSG_NOSIGNAL);
+
+  if (message_bytes_sent < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return absl::OkStatus();
+    }
+    close(client_fd);
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Fatal send on client fd %d", client_fd));
+  }
 
   return absl::OkStatus();
 }

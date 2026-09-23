@@ -9,6 +9,7 @@ cc_test(
         "@googletest//:gtest",
         "@googletest//:gtest_main",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "//src/kv_service:epoll_server"
     ],
 )

@@ -3,6 +3,7 @@
 
 #include <sys/epoll.h>
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -58,7 +59,7 @@ class EpollServer {
   int listen_fd_ = -1;
   int epoll_fd_ = -1;
   const int max_events_ = 64;
-  bool is_running_ = false;
+  std::atomic<bool> is_running_ = false;
   bool local_only_ = true;
 };
 }  // namespace kvstore

@@ -27,13 +27,11 @@ absl::Status StartAndRunServer() {
 }
 
 int main() {
-  std::signal(SIGPIPE, SIG_IGN);
   LOG(INFO) << "Starting service... ";
   absl::Status status = StartAndRunServer();
   if (!status.ok()) {
     LOG(ERROR) << "Server exited premeturly\n";
     return 1;
   }
-
   return 0;
 }

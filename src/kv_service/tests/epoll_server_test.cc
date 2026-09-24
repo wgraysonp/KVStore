@@ -14,7 +14,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
-using namespace kvstore;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
+
+namespace kvstore {
 
 class EpollServerTest : public ::testing::Test {
  protected:
@@ -187,3 +190,56 @@ TEST_F(EpollServerTest, ServerHandlesMultipleClientConnections) {
     EXPECT_EQ(results[i].response, expected_results[i].response);
   }
 }
+
+TEST_F(EpollServerTest, ServerDoesNotFailWithBrokenClientConnection) {
+  int client_fd = ClientConnect();
+  ASSERT_GE(client_fd, 0);
+
+  std::string message = "Grayson";
+
+  uint32_t message_len = htonl(static_cast<uint32_t>(message.size()));
+  send(client_fd, &message_len, 4, 0);
+  send(client_fd, message.data(), message.size(), 0);
+
+  char* buffer[1] = {0};
+
+  // blocking recieve to wait for the server to write 1 byte
+  recv(client_fd, buffer, 1, MSG_PEEK);
+
+  // shutdown receptions so that when the server tries to write back
+  // it writes to a broken connection
+  shutdown(client_fd, SHUT_RD);
+
+  close(client_fd);
+
+  EXPECT_TRUE(server->IsRunning());
+}
+
+TEST_F(EpollServerTest, ServerEvictsClientIfRequestIsTooLarge) {
+  ASSERT_TRUE(server->IsRunning());
+
+  int client_fd = ClientConnect();
+  ASSERT_GE(client_fd, 0);
+
+  uint32_t invalid_message_size = 1024 * 1024 + 1;
+  uint32_t message_len = htonl(static_cast<uint32_t>(invalid_message_size));
+  send(client_fd, &message_len, 4, 0);
+
+  char* buffer[1] = {0};
+
+  // blocking recieve to wait for the server to write 1 byte
+  int result = recv(client_fd, buffer, 1, MSG_PEEK);
+
+  // server should have closed the file descriptor
+  EXPECT_EQ(result, 0);
+
+  close(client_fd);
+}
+
+TEST_F(EpollServerTest, SetNonBlockingFailsWithInvalidFD) {
+  int fd = -1;
+  absl::Status status = server->SetNonBlocking(fd);
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kFailedPrecondition,
+                               HasSubstr("Bad file descriptor")));
+}
+}  // namespace kvstore

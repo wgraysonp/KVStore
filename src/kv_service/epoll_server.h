@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "gtest/gtest_prod.h"
 
 namespace kvstore {
 
@@ -28,6 +29,8 @@ class EpollServer {
   EpollServer(const EpollServer&) = delete;
   EpollServer& operator=(const EpollServer&) = delete;
 
+  bool IsRunning() const { return is_running_;}
+
   // start the server
   absl::Status Start();
 
@@ -37,6 +40,9 @@ class EpollServer {
   void Stop();
 
  private:
+
+  FRIEND_TEST(EpollServerTest, SetNonBlockingFailsWithInvalidFD);
+  
   // Set a socket file descriptor to non-blocking
   absl::Status SetNonBlocking(int fd);
 

@@ -6,10 +6,25 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "src/kv_service/data.h"
 
 namespace kvstore {
+namespace {
+absl::Status ValidateWriteRequest(const Request& request) {
+  if (request.request_type == RequestType::GET) {
+    return absl::InvalidArgumentError(
+        "Request type is GET. Only PUT requests are logged");
+  }
+
+  if (!request.value.has_value()) {
+    return absl::InvalidArgumentError("Request key is null.");
+  }
+  return absl::OkStatus();
+}
+}  // namespace
 
 WriteAheadLog::WriteAheadLog(FILE* write_log, int log_fd)
     : log_fd_(log_fd), write_log_(write_log) {};
@@ -38,6 +53,9 @@ absl::Status WriteAheadLog::LogRequest(const Request& request) {
   if (write_log_ == nullptr) {
     return absl::InternalError("Log file is nullptr");
   }
+
+  ABSL_RETURN_IF_ERROR(ValidateWriteRequest(request));
+
   std::string request_log = ConvertRequestToString(request);
   size_t bytes_written =
       fwrite(request_log.data(), sizeof(char), request_log.size(), write_log_);
@@ -65,7 +83,7 @@ absl::Status WriteAheadLog::Close() {
 }
 
 std::string WriteAheadLog::ConvertRequestToString(const Request& request) {
-  // placeholder
-  return "Hello";
+  std::string log = absl::StrCat("PUT:", request.key, ":", *request.value);
+  return log;
 }
 }  // namespace kvstore

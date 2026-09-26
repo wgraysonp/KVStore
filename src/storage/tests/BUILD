@@ -6,6 +6,7 @@ cc_test(
     srcs = ["write_ahead_test.cc"],
     deps = [
         "//src/storage:write_ahead",
+        "//src/kv_service:data",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",

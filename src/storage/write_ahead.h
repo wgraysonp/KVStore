@@ -13,7 +13,7 @@ namespace kvstore {
 class WriteAheadLog {
  public:
   static absl::StatusOr<std::unique_ptr<WriteAheadLog>> CreateLog(
-      const std::string& log_file_path, const bool write_only);
+      const std::string& log_file_path);
   WriteAheadLog(const WriteAheadLog&) = delete;
   WriteAheadLog& operator=(const WriteAheadLog&) = delete;
   WriteAheadLog(WriteAheadLog&&) noexcept = default;
@@ -24,11 +24,10 @@ class WriteAheadLog {
   absl::Status Close();
 
  private:
-  explicit WriteAheadLog(FILE* write_log, int log_fd_);
+  explicit WriteAheadLog(int log_fd_);
   std::string ConvertRequestToString(const Request& request);
 
   int log_fd_;
-  FILE* write_log_;
 };
 
 }  // namespace kvstore

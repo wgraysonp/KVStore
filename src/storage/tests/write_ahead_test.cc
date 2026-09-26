@@ -89,6 +89,39 @@ TEST_F(WriteAheadLogTest, SingleRequestIsLoggesCorrectly) {
   std::string logged_line;
   EXPECT_TRUE(std::getline(log_file_, logged_line));
   EXPECT_EQ(logged_line, expected_line);
+
+  EXPECT_EQ(log_file_.peek(), std::char_traits<char>::eof());
+}
+
+TEST_F(WriteAheadLogTest, MultipleRequestsLoggedCorrectly) {
+  Request request1{
+      .request_type = RequestType::PUT,
+      .key = "test_key1",
+      .value = "test_value1",
+  };
+
+  Request request2{
+      .request_type = RequestType::PUT,
+      .key = "test_key2",
+      .value = "test_value2",
+  };
+
+  std::string expected_line1 = "PUT:test_key1:test_value1";
+  std::string expected_line2 = "PUT:test_key2:test_value2";
+
+  ABSL_EXPECT_OK(logger_->LogRequest(request1));
+  ABSL_EXPECT_OK(logger_->LogRequest(request2));
+
+  log_file_.clear();
+  std::string logged_line1;
+  EXPECT_TRUE(std::getline(log_file_, logged_line1));
+  EXPECT_EQ(logged_line1, expected_line1);
+
+  std::string logged_line2;
+  EXPECT_TRUE(std::getline(log_file_, logged_line2));
+  EXPECT_EQ(logged_line2, expected_line2);
+
+  EXPECT_EQ(log_file_.peek(), std::char_traits<char>::eof());
 }
 
 }  // namespace kvstore

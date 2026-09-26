@@ -81,6 +81,7 @@ absl::Status WriteAheadLog::Close() {
 
 std::string WriteAheadLog::ConvertRequestToString(const Request& request) {
   std::string log = absl::StrCat("PUT:", request.key, ":", *request.value);
+  log += '\n';
   return log;
 }
 }  // namespace kvstore

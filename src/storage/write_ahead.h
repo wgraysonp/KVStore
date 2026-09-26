@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <fstream>
+#include <memory>
 
 #include "absl/status/status.h"
 #include "src/kv_service/data.h"
@@ -11,7 +12,7 @@ namespace kvstore {
 
 class WriteAheadLog {
  public:
-  static absl::StatusOr<WriteAheadLog> CreateLog(
+  static absl::StatusOr<std::unique_ptr<WriteAheadLog>> CreateLog(
       const std::string& log_file_path, const bool write_only);
   WriteAheadLog(const WriteAheadLog&) = delete;
   WriteAheadLog& operator=(const WriteAheadLog&) = delete;

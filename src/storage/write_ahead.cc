@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include <cstdio>
+#include <memory>
 #include <string>
 
 #include "absl/status/status.h"
@@ -35,18 +36,21 @@ WriteAheadLog::~WriteAheadLog() {
   }
 }
 
-absl::StatusOr<WriteAheadLog> WriteAheadLog::CreateLog(
+absl::StatusOr<std::unique_ptr<WriteAheadLog>> WriteAheadLog::CreateLog(
     const std::string& log_file_path, const bool write_only) {
-  const char* mode = write_only ? "a" : "+a";
+  const char* mode = write_only ? "a" : "a+";
   FILE* write_log = fopen(log_file_path.data(), mode);
   if (write_log == nullptr) {
-    return absl::ErrnoToStatus(errno, "fopen failed");
+    return absl::ErrnoToStatus(
+        errno,
+        absl::StrFormat("fopen failed. Arguments: file_path: %s, mode: %s",
+                        log_file_path, mode));
   }
   int log_fd = fileno(write_log);
   if (log_fd < 1) {
     return absl::ErrnoToStatus(errno, "Error getting log fd.");
   }
-  return WriteAheadLog(write_log, log_fd);
+  return std::unique_ptr<WriteAheadLog>(new WriteAheadLog(write_log, log_fd));
 }
 
 absl::Status WriteAheadLog::LogRequest(const Request& request) {

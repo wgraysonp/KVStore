@@ -20,7 +20,6 @@ class WriteAheadLog {
   ~WriteAheadLog();
 
   absl::Status LogRequest(const Request& request);
-  absl::Status Open(bool write_only = true);
   absl::Status Close();
 
  private:

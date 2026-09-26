@@ -20,6 +20,13 @@ cc_library(
 cc_library(
     name = "consts",
     hdrs = ["consts.h"],
+    visibility = ["//src/storage:__pkg__"],
+)
+
+cc_library(
+    name = "data",
+    hdrs = ["data.h"],
+    visibility = ["//src/storage:__pkg__"],
 )
 
 cc_binary(

@@ -173,7 +173,13 @@ TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {
   absl::StatusOr<absl::flat_hash_map<std::string, std::string>> map_status =
       logger_->RecoverKVStore();
 
-  ABSL_ASSERT_OK(map_status);
+  
+
+  ABSL_EXPECT_OK(map_status);
+
+  if (!map_status.ok()){
+    FAIL() << map_status.status().ToString();
+  }
 
   const auto recovered_map = std::move(map_status.value());
 
@@ -182,5 +188,7 @@ TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {
 
   EXPECT_THAT(recovered_map, ContainerEq(expected_map));
 }
+
+
 
 }  // namespace kvstore

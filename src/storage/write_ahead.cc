@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -34,6 +35,64 @@ absl::Status ValidateWriteRequest(const Request& request) {
   }
   return absl::OkStatus();
 }
+
+// check if the last line in log is corrupted and remove it if so
+absl::StatusOr<size_t> ClearCorruptedEntriesFromLog(
+    int fd, const ssize_t old_file_size) {
+  if (old_file_size < 0) {
+    return absl::InvalidArgumentError("file size must be non-negative");
+  } else if (old_file_size == 0) {
+    return 0;
+  }
+
+  char last_byte = '\0';
+  ssize_t new_file_size = old_file_size;
+  ssize_t bytes_read;
+
+  auto close_fd = absl::MakeCleanup([fd]() { close(fd); });
+
+  bytes_read = pread(fd, &last_byte, 1, old_file_size - 1);
+  if (bytes_read < 0) {
+    return absl::ErrnoToStatus(errno, "pread failed to read last byte of log.");
+  } else if (bytes_read == 0) {
+    return absl::InternalError("pread performed short read.");
+  }
+
+  // check if last line is corrupted - signaled by the lack of terminating
+  // newline character
+  if (bytes_read == 1 && last_byte == '\n') {
+    std::string buffer;
+    buffer.resize(old_file_size);
+
+    bytes_read = pread(fd, &buffer[0], static_cast<size_t>(old_file_size), 0);
+    if (bytes_read < 0) {
+      return absl::ErrnoToStatus(errno, "pread failed to read entire log file");
+    } else if (bytes_read < old_file_size) {
+      return absl::InternalError(
+          "pread performed short read during bulk file read");
+    }
+
+    size_t last_newline = buffer.rfind('\n');
+
+    // if this is false the entire file is corrupted and the new file size
+    // should remain zero
+    if (last_newline != std::string::npos) {
+      new_file_size = last_newline + 1;
+    } else {
+      new_file_size = 0;
+    }
+
+    // truncate the file to new file size which removes last corrupted line
+    // if the
+    if (ftruncate(fd, new_file_size) < 0) {
+      return absl::ErrnoToStatus(errno, "ftruncate failed");
+    }
+  }
+
+  std::move(close_fd).Cancel();
+  return static_cast<size_t>(new_file_size);
+}
+
 }  // namespace
 
 WriteAheadLog::WriteAheadLog(int log_fd, std::string log_file_path)
@@ -79,7 +138,7 @@ absl::Status WriteAheadLog::LogRequest(const Request& request) {
 
 absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
 WriteAheadLog::RecoverKVStore() {
-  int fd = open(log_file_path_.c_str(), O_RDONLY);
+  int fd = open(log_file_path_.c_str(), O_RDWR);
   if (fd < 0) {
     return absl::ErrnoToStatus(errno, "Failed to open log for recovery.");
   }
@@ -96,8 +155,11 @@ WriteAheadLog::RecoverKVStore() {
     return key_value_map;
   }
 
+  ABSL_ASSIGN_OR_RETURN(size_t cleaned_file_size,
+                        ClearCorruptedEntriesFromLog(fd, sb.st_size));
+
   char* file_buffer = static_cast<char*>(
-      mmap(nullptr, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0));
+      mmap(nullptr, cleaned_file_size, PROT_READ, MAP_PRIVATE, fd, 0));
   if (file_buffer == MAP_FAILED) {
     close(fd);
     return absl::ErrnoToStatus(errno,
@@ -106,9 +168,9 @@ WriteAheadLog::RecoverKVStore() {
 
   // let the OS know we are going to read the entire file sequentially
   // to optimize the loading process
-  madvise(file_buffer, sb.st_size, MADV_SEQUENTIAL);
+  madvise(file_buffer, cleaned_file_size, MADV_SEQUENTIAL);
 
-  const absl::string_view log_data(file_buffer, sb.st_size);
+  const absl::string_view log_data(file_buffer, cleaned_file_size);
 
   // if the last line doesnt end in a newline character
   // it is invalid due to a possible crash during write
@@ -117,10 +179,10 @@ WriteAheadLog::RecoverKVStore() {
   const std::vector<absl::string_view> lines =
       absl::StrSplit(log_data, '\n', absl::SkipEmpty());
 
-  int processed = 0;
+  size_t processed = 0;
 
   for (const absl::string_view view : lines) {
-        // dont read the last line if it was corrupted
+    // dont read the last line if it was corrupted
     // TODO: If this is found, the line needs to be deleted from the log
     if (processed == lines.size() - 1 && !last_line_valid) break;
 
@@ -133,7 +195,7 @@ WriteAheadLog::RecoverKVStore() {
     processed++;
   }
 
-  munmap(file_buffer, sb.st_size);
+  munmap(file_buffer, cleaned_file_size);
   close(fd);
 
   return key_value_map;

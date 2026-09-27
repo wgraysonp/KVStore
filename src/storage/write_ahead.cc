@@ -38,7 +38,7 @@ absl::Status ValidateWriteRequest(const Request& request) {
 
 // check if the last line in log is corrupted and remove it if so
 absl::StatusOr<size_t> ClearCorruptedEntriesFromLog(
-    int fd, const ssize_t old_file_size) {
+    const int fd, const ssize_t old_file_size) {
   if (old_file_size < 0) {
     return absl::InvalidArgumentError("file size must be non-negative");
   } else if (old_file_size == 0) {
@@ -49,8 +49,6 @@ absl::StatusOr<size_t> ClearCorruptedEntriesFromLog(
   ssize_t new_file_size = old_file_size;
   ssize_t bytes_read;
 
-  auto close_fd = absl::MakeCleanup([fd]() { close(fd); });
-
   bytes_read = pread(fd, &last_byte, 1, old_file_size - 1);
   if (bytes_read < 0) {
     return absl::ErrnoToStatus(errno, "pread failed to read last byte of log.");
@@ -60,7 +58,7 @@ absl::StatusOr<size_t> ClearCorruptedEntriesFromLog(
 
   // check if last line is corrupted - signaled by the lack of terminating
   // newline character
-  if (bytes_read == 1 && last_byte == '\n') {
+  if (bytes_read == 1 && last_byte != '\n') {
     std::string buffer;
     buffer.resize(old_file_size);
 
@@ -88,8 +86,6 @@ absl::StatusOr<size_t> ClearCorruptedEntriesFromLog(
       return absl::ErrnoToStatus(errno, "ftruncate failed");
     }
   }
-
-  std::move(close_fd).Cancel();
   return static_cast<size_t>(new_file_size);
 }
 
@@ -143,11 +139,12 @@ WriteAheadLog::RecoverKVStore() {
     return absl::ErrnoToStatus(errno, "Failed to open log for recovery.");
   }
 
+  auto close_fd = absl::MakeCleanup([fd]() { close(fd); });
+
   absl::flat_hash_map<std::string, std::string> key_value_map;
 
   struct stat sb;
   if (fstat(fd, &sb) < 0) {
-    close(fd);
     return absl::ErrnoToStatus(errno, "fstat failed to get log file stats.");
   }
   if (sb.st_size == 0) {
@@ -161,7 +158,6 @@ WriteAheadLog::RecoverKVStore() {
   char* file_buffer = static_cast<char*>(
       mmap(nullptr, cleaned_file_size, PROT_READ, MAP_PRIVATE, fd, 0));
   if (file_buffer == MAP_FAILED) {
-    close(fd);
     return absl::ErrnoToStatus(errno,
                                "mmap failed to map log file to address space.");
   }
@@ -195,8 +191,9 @@ WriteAheadLog::RecoverKVStore() {
     processed++;
   }
 
-  munmap(file_buffer, cleaned_file_size);
-  close(fd);
+  if (munmap(file_buffer, cleaned_file_size) < 0) {
+    return absl::ErrnoToStatus(errno, "munmap failed.");
+  }
 
   return key_value_map;
 }

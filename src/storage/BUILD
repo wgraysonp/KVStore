@@ -8,6 +8,8 @@ cc_library(
     visibility = ["//src/storage/tests:__pkg__"],
     deps = [
         "//src/kv_service:data",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",

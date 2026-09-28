@@ -168,27 +168,13 @@ WriteAheadLog::RecoverKVStore() {
 
   const absl::string_view log_data(file_buffer, cleaned_file_size);
 
-  // if the last line doesnt end in a newline character
-  // it is invalid due to a possible crash during write
-  const bool last_line_valid = log_data.back() == '\n';
-
   const std::vector<absl::string_view> lines =
       absl::StrSplit(log_data, '\n', absl::SkipEmpty());
 
-  size_t processed = 0;
-
   for (const absl::string_view view : lines) {
-    // dont read the last line if it was corrupted
-    // TODO: If this is found, the line needs to be deleted from the log
-    if (processed == lines.size() - 1 && !last_line_valid) break;
-
-    // if the line doesnt end in a newline character it is invalid.
-    // this is mainly the case if there is a crash during a write call
     const std::pair<absl::string_view, absl::string_view> kv =
         absl::StrSplit(view, ':');
     key_value_map[kv.first] = kv.second;
-
-    processed++;
   }
 
   if (munmap(file_buffer, cleaned_file_size) < 0) {

@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -26,6 +27,7 @@ class WriteAheadLogTest : public ::testing::Test {
   std::filesystem::path test_directory_;
   std::filesystem::path test_wal_path_;
   std::ifstream log_file_;
+  std::ofstream log_file_writer_;
 
   void SetUp() override {
     test_directory_ = std::filesystem::temp_directory_path() /
@@ -39,7 +41,9 @@ class WriteAheadLogTest : public ::testing::Test {
     ABSL_ASSERT_OK(log_status);
 
     log_file_ = std::ifstream(test_wal_path_.string());
+    log_file_writer_ = std::ofstream(test_wal_path_.string());
     ASSERT_TRUE(log_file_.is_open());
+    ASSERT_TRUE(log_file_writer_.is_open());
 
     logger_ = std::move(log_status.value());
   }
@@ -173,11 +177,9 @@ TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {
   absl::StatusOr<absl::flat_hash_map<std::string, std::string>> map_status =
       logger_->RecoverKVStore();
 
-  
-
   ABSL_EXPECT_OK(map_status);
 
-  if (!map_status.ok()){
+  if (!map_status.ok()) {
     FAIL() << map_status.status().ToString();
   }
 
@@ -189,6 +191,68 @@ TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {
   EXPECT_THAT(recovered_map, ContainerEq(expected_map));
 }
 
+TEST_F(WriteAheadLogTest,
+       LogCorrectlyRecoversMapIfALineWasCorruptedDuringWrite) {
+  // Write some requests to the log
+  Request request1{
+      .request_type = RequestType::PUT,
+      .key = "test_key1",
+      .value = "test_value1",
+  };
 
+  Request request2{
+      .request_type = RequestType::PUT,
+      .key = "test_key2",
+      .value = "test_value2",
+  };
+
+  std::string expected_line1 = "test_key1:test_value1";
+  std::string expected_line2 = "test_key2:test_value2";
+
+  ABSL_EXPECT_OK(logger_->LogRequest(request1));
+  ABSL_EXPECT_OK(logger_->LogRequest(request2));
+
+  // write a corrupted line that is not terminated with a newline character
+  log_file_writer_.seekp(0, std::ios_base::end);
+  log_file_writer_ << "bad_key:broken";
+  log_file_writer_.flush();
+
+  // destroy the logger class to simulate a crash
+  logger_.reset();
+
+  // reconstruct the class to simulate reboot
+  absl::StatusOr<std::unique_ptr<WriteAheadLog>> log_status =
+      WriteAheadLog::CreateLog(test_wal_path_.string());
+
+  ABSL_ASSERT_OK(log_status);
+
+  logger_ = std::move(log_status.value());
+
+  // try to recover the kv map
+  absl::StatusOr<absl::flat_hash_map<std::string, std::string>> map_status =
+      logger_->RecoverKVStore();
+
+  ABSL_EXPECT_OK(map_status);
+
+  if (!map_status.ok()) {
+    FAIL() << map_status.status().ToString();
+  }
+
+  const auto recovered_map = std::move(map_status.value());
+
+  absl::flat_hash_map<std::string, std::string> expected_map = {
+      {"test_key1", "test_value1"}, {"test_key2", "test_value2"}};
+
+  EXPECT_THAT(recovered_map, ContainerEq(expected_map));
+
+  // make sure that the corrupted line was removed from the file
+  int n_lines = 0;
+  std::string line;
+
+  while(std::getline(log_file_, line)){
+    n_lines += 1;
+  }
+  EXPECT_EQ(n_lines, 2);
+}
 
 }  // namespace kvstore

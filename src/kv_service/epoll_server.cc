@@ -36,7 +36,6 @@ absl::StatusOr<std::vector<char>> ReadClientPayload(int payload_len,
     }
 
     if (n == 0) {
-      close(client_fd);
       return absl::InternalError(
           absl::StrFormat("Dropped client fd %d mid stream."));
     }
@@ -49,7 +48,6 @@ absl::StatusOr<std::vector<char>> ReadClientPayload(int payload_len,
     }
 
     // n < 0 and errno is not EAGAIN or EWOULDBLOCK - fatal system error
-    close(client_fd);
     return absl::ErrnoToStatus(
         errno,
         absl::StrFormat("Dropped client fd %d mid payload read", client_fd));
@@ -203,23 +201,23 @@ absl::Status EpollServer::AcceptNewConnection() {
 absl::Status EpollServer::HandleCurrentConnection(int client_fd) {
   char length_buf[4];
   ssize_t bytes_recieved = recv(client_fd, length_buf, 4, 0);
+
+  auto close_fd = absl::MakeCleanup([client_fd](){close(client_fd);});
+
   if (bytes_recieved < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
       return absl::OkStatus();
     }
-    close(client_fd);
     return absl::ErrnoToStatus(
         errno, absl::StrFormat("Fatal read on client fd %d", client_fd));
 
   } else if (bytes_recieved == 0) {
     LOG(INFO) << "Client FD " << client_fd << " disconnected cleanly.";
-    close(client_fd);
     return absl::OkStatus();
   }
 
   uint32_t payload_len = ReadUint32(length_buf);
   if (payload_len > 1024 * 1024) {
-    close(client_fd);
     return absl::InternalError(absl::StrFormat(
         "Client fd %d payload exceeded 1MB limit. Evicting client\n",
         client_fd));
@@ -231,7 +229,11 @@ absl::Status EpollServer::HandleCurrentConnection(int client_fd) {
   std::string command(payload.begin(), payload.end());
   std::string response = message_handler_(command);
 
-  return HandleClientWrite(client_fd, response);
+  ABSL_RETURN_IF_ERROR(HandleClientWrite(client_fd, response));
+
+  std::move(close_fd).Cancel();
+
+  return absl::OkStatus();
 }
 
 absl::Status EpollServer::HandleClientWrite(int client_fd,
@@ -245,7 +247,6 @@ absl::Status EpollServer::HandleClientWrite(int client_fd,
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
       return absl::OkStatus();
     }
-    close(client_fd);
     return absl::ErrnoToStatus(
         errno, absl::StrFormat("Fatal read on client fd %d", client_fd));
   }
@@ -257,7 +258,6 @@ absl::Status EpollServer::HandleClientWrite(int client_fd,
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
       return absl::OkStatus();
     }
-    close(client_fd);
     return absl::ErrnoToStatus(
         errno, absl::StrFormat("Fatal send on client fd %d", client_fd));
   }

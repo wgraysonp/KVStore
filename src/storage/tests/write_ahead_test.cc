@@ -139,7 +139,7 @@ TEST_F(WriteAheadLogTest, RecoveryReturnsEmptyHashMapWithEmptyLog) {
 
   const auto key_value_map = std::move(map_status.value());
 
-  EXPECT_EQ(key_value_map.size(), 0);
+  EXPECT_EQ(key_value_map.size(), (size_t)0);
 }
 
 TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {

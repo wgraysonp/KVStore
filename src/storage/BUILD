@@ -17,3 +17,16 @@ cc_library(
         "@abseil-cpp//absl/strings",
     ],
 )
+
+cc_library(
+    name = "key_value_store",
+    srcs = ["key_value_store.cc"],
+    hdrs = ["key_value_store.h"],
+    visibility = ["//src/storage/tests:__pkg__"],
+    deps = [
+        "//src/kv_service:data",
+        "//src/storage:write_ahead",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+    ],
+)

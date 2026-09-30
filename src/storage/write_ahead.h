@@ -12,20 +12,31 @@
 
 namespace kvstore {
 
-class WriteAheadLog {
+class IWriteAheadLog {
+ public:
+  IWriteAheadLog() = default; 
+  IWriteAheadLog(const IWriteAheadLog&) = delete;
+  IWriteAheadLog& operator=(const IWriteAheadLog&) = delete;
+  IWriteAheadLog(IWriteAheadLog&&) noexcept = default;
+  IWriteAheadLog& operator=(IWriteAheadLog&&) noexcept = default;
+  virtual ~IWriteAheadLog() = default;
+
+  virtual absl::Status LogRequest(const Request& request) = 0;
+  virtual absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
+  RecoverKVStore() = 0;
+  virtual absl::Status Close() = 0;
+};
+
+class WriteAheadLog : public IWriteAheadLog {
  public:
   static absl::StatusOr<std::unique_ptr<WriteAheadLog>> CreateLog(
       std::string log_file_path);
-  WriteAheadLog(const WriteAheadLog&) = delete;
-  WriteAheadLog& operator=(const WriteAheadLog&) = delete;
-  WriteAheadLog(WriteAheadLog&&) noexcept = default;
-  WriteAheadLog& operator=(WriteAheadLog&&) noexcept = default;
-  ~WriteAheadLog();
+  ~WriteAheadLog() override;
 
-  absl::Status LogRequest(const Request& request);
+  absl::Status LogRequest(const Request& request) override;
   absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
-  RecoverKVStore();
-  absl::Status Close();
+  RecoverKVStore() override;
+  absl::Status Close() override;
 
  private:
   explicit WriteAheadLog(int log_fd_, std::string log_file_path);

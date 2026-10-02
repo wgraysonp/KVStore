@@ -14,7 +14,7 @@
 namespace kvstore {
 
 absl::StatusOr<std::unique_ptr<KVStore>> KVStore::CreateKVStore(
-    std::unique_ptr<WriteAheadLog> log) {
+    std::unique_ptr<IWriteAheadLog> log) {
 
   ABSL_ASSIGN_OR_RETURN((absl::flat_hash_map<std::string, std::string> store),
                         log->RecoverKVStore());
@@ -37,7 +37,7 @@ Response KVStore::ProcessRequest(const Request& request){
 }
 
 KVStore::KVStore(absl::flat_hash_map<std::string, std::string> store,
-                 std::unique_ptr<WriteAheadLog> log)
+                 std::unique_ptr<IWriteAheadLog> log)
     : store_(std::move(store)), write_ahead_log_(std::move(log)) {};
 
 Response KVStore::Get(const Request& request) {

@@ -190,7 +190,7 @@ absl::Status WriteAheadLog::Close() {
   }
   absl::Status status = absl::OkStatus();
   if (close(log_fd_) < 0) {
-    status = absl::ErrnoToStatus(errno, "fclose failed.");
+    status = absl::ErrnoToStatus(errno, "close failed.");
   }
   log_fd_ = -1;
   return status;

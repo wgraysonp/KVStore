@@ -24,7 +24,6 @@ class IWriteAheadLog {
   virtual absl::Status LogRequest(const Request& request) = 0;
   virtual absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
   RecoverKVStore() = 0;
-  virtual absl::Status Close() = 0;
 };
 
 class WriteAheadLog : public IWriteAheadLog {
@@ -36,7 +35,7 @@ class WriteAheadLog : public IWriteAheadLog {
   absl::Status LogRequest(const Request& request) override;
   absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
   RecoverKVStore() override;
-  absl::Status Close() override;
+  absl::Status Close();
 
  private:
   explicit WriteAheadLog(int log_fd_, std::string log_file_path);

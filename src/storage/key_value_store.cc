@@ -15,7 +15,6 @@ namespace kvstore {
 
 absl::StatusOr<std::unique_ptr<KVStore>> KVStore::CreateKVStore(
     std::unique_ptr<IWriteAheadLog> log) {
-
   ABSL_ASSIGN_OR_RETURN((absl::flat_hash_map<std::string, std::string> store),
                         log->RecoverKVStore());
 
@@ -23,14 +22,18 @@ absl::StatusOr<std::unique_ptr<KVStore>> KVStore::CreateKVStore(
       new KVStore(std::move(store), std::move(log)));
 }
 
-Response KVStore::ProcessRequest(const Request& request){
-  if (request.request_type == RequestType::GET ){
+Response KVStore::ProcessRequest(const Request& request) {
+  if (request.request_type == RequestType::GET) {
+    if (request.value) {
+      LOG(INFO) << "Ignoring uncessesary value " << *request.value
+                << " in GET request.";
+    }
     return Get(request);
   } else if (request.request_type == RequestType::PUT) {
     return Put(request);
   } else {
-    Response response {
-      .response_status = ResponseStatus::InvalidRequest,
+    Response response{
+        .response_status = ResponseStatus::InvalidRequest,
     };
     return response;
   }
@@ -62,6 +65,7 @@ Response KVStore::Put(const Request& request) {
   if (absl::Status status = write_ahead_log_->LogRequest(request);
       !status.ok()) {
     response.response_status = ResponseStatus::InternalError;
+    return response;
   }
 
   auto [unused_it, inserted] =

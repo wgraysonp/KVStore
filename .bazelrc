@@ -1,1 +1,10 @@
 build --cxxopt="-std=c++20"
+
+# ThreadSanitizer config
+test:tsan --copt=-fsanitize=thread
+test:tsan --linkopt=-fsanitize=thread
+test:tsan --strip=never
+test:tsan --compilation_mode=dbg
+
+# Optional: TSan slows down execution, so extend the test timeout limit
+test:tsan --test_timeout=300,300,300,300

@@ -3,7 +3,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <memory>
+#include <thread>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -162,6 +164,57 @@ TEST_F(KeyValueStoreTests,
   };
 
   EXPECT_EQ(resp, expected_resp);
+}
+
+// test multiple threads reading and writing to the kv store
+// this should be run with thread sanitizer (bazel test // ... -config=tsan)
+TEST_F(KeyValueStoreTests, ConcurrencyStressTest) {
+  ASSERT_NO_FATAL_FAILURE(CreateTestKVStore(InternalKVMap{{"key", "value"}}))
+      << "KV Store creation failed";
+
+  std::atomic<bool> hold_readers(true);
+
+  Request reader_request{
+      .request_type = RequestType::GET,
+      .key = "key",
+  };
+
+  std::vector<std::thread> threads;
+
+  // add reader threads
+  for (int i = 0; i < 5; i++) {
+    threads.emplace_back([&]() {
+      while (hold_readers.load()) {
+        Response resp = store_->ProcessRequest(reader_request);
+      }
+    });
+  }
+
+  // add writer threads
+  for (int i = 0; i < 3; i++) {
+    threads.emplace_back([&, i]() {
+      Request req{
+          .request_type = RequestType::PUT,
+          .key = "key_" + std::to_string(i),
+          .value = "value_" + std::to_string(i),
+      };
+      Response resp = store_->ProcessRequest(req);
+    });
+  }
+
+  hold_readers = false;
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  const InternalKVMap& internal_map = store_->GetKVMap();
+
+  InternalKVMap expected_map{{"key", "value"},
+                             {"key_0", "value_0"},
+                             {"key_1", "value_1"},
+                             {"key_2", "value_2"}};
+
+  EXPECT_THAT(internal_map, ContainerEq(expected_map));
 }
 
 }  // namespace kvstore

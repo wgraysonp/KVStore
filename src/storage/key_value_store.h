@@ -1,6 +1,7 @@
 #ifndef SRC_STOREAGE_KEY_VALUE_STORE_H_
 #define SRC_STOREAGE_KEY_VALUE_STORE_H_
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>

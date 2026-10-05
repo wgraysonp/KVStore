@@ -1,5 +1,6 @@
 #include "src/storage/key_value_store.h"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>

@@ -15,7 +15,6 @@ class MockWriteAheadLog : public IWriteAheadLog {
   MockWriteAheadLog() = default;
   ~MockWriteAheadLog() override = default;
 
-  // Syntax: MOCK_METHOD(ReturnType, MethodName, (Args...), (Specs...))
   MOCK_METHOD((absl::Status), LogRequest, (const Request& request), (override));
   MOCK_METHOD((absl::StatusOr<absl::flat_hash_map<std::string, std::string>>),
               RecoverKVStore, (), (override));

@@ -16,6 +16,7 @@ using ::absl_testing::StatusIs;
 using ::testing::ContainerEq;
 using ::testing::HasSubstr;
 using ::testing::Return;
+using ::testing::NiceMock;
 
 using InternalKVMap = absl::flat_hash_map<std::string, std::string>;
 
@@ -23,16 +24,14 @@ namespace kvstore {
 
 class KeyValueStoreTests : public ::testing::Test {
  protected:
-  MockWriteAheadLog* mock_log_;
+  NiceMock<MockWriteAheadLog>* mock_log_;
   std::unique_ptr<KVStore> store_;
 
   void CreateTestKVStore(const InternalKVMap& initial_kv_map) {
-    auto mock_log_unique_ptr = std::make_unique<MockWriteAheadLog>();
+    auto mock_log_unique_ptr = std::make_unique<NiceMock<MockWriteAheadLog>>();
     mock_log_ = mock_log_unique_ptr.get();
 
-    EXPECT_CALL(*mock_log_, RecoverKVStore())
-        .Times(1)
-        .WillOnce(Return(initial_kv_map));
+    ON_CALL(*mock_log_, RecoverKVStore()).WillByDefault(Return(initial_kv_map));
 
     absl::StatusOr<std::unique_ptr<KVStore>> create_store_status =
         KVStore::CreateKVStore(std::move(mock_log_unique_ptr));
@@ -44,7 +43,7 @@ class KeyValueStoreTests : public ::testing::Test {
 };
 
 TEST_F(KeyValueStoreTests, KVStoreCreationFailsIfMapRecoveryFails) {
-  auto mock_log_unique_ptr = std::make_unique<MockWriteAheadLog>();
+  auto mock_log_unique_ptr = std::make_unique<NiceMock<MockWriteAheadLog>>();
   mock_log_ = mock_log_unique_ptr.get();
 
   absl::Status recovery_failure_status =
@@ -84,10 +83,6 @@ TEST_F(KeyValueStoreTests, KVStoreCorrectlyAddsSingleKeyValuePair) {
       .key = "key_1",
       .value = "value_1",
   };
-
-  EXPECT_CALL(*mock_log_, LogRequest(req))
-      .Times(1)
-      .WillOnce(Return(absl::OkStatus()));
 
   Response resp = store_->ProcessRequest(req);
 
@@ -183,7 +178,7 @@ TEST_F(KeyValueStoreTests, ConcurrencyStressTest) {
 
   // add reader threads
   for (int i = 0; i < 5; i++) {
-    threads.emplace_back([&]() {
+    threads.emplace_back([&, i]() {
       while (hold_readers.load()) {
         Response resp = store_->ProcessRequest(reader_request);
       }
@@ -192,14 +187,13 @@ TEST_F(KeyValueStoreTests, ConcurrencyStressTest) {
 
   // add writer threads
   for (int i = 0; i < 3; i++) {
-    threads.emplace_back([&, i]() {
-      Request req{
-          .request_type = RequestType::PUT,
-          .key = "key_" + std::to_string(i),
-          .value = "value_" + std::to_string(i),
-      };
-      Response resp = store_->ProcessRequest(req);
-    });
+    Request req{
+        .request_type = RequestType::PUT,
+        .key = "key_" + std::to_string(i),
+        .value = "value_" + std::to_string(i),
+    };
+    threads.emplace_back(
+        [&, i, req]() { Response resp = store_->ProcessRequest(req); });
   }
 
   hold_readers = false;

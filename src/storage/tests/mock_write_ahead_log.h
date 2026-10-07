@@ -12,7 +12,10 @@ namespace kvstore {
 
 class MockWriteAheadLog : public IWriteAheadLog {
  public:
-  MockWriteAheadLog() = default;
+  MockWriteAheadLog() {
+    ON_CALL(*this, LogRequest(::testing::_))
+        .WillByDefault(::testing::Return(absl::OkStatus()));
+  }
   ~MockWriteAheadLog() override = default;
 
   MOCK_METHOD((absl::Status), LogRequest, (const Request& request), (override));

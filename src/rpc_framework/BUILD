@@ -22,7 +22,10 @@ cc_library(
     name = "rpc_registry",
     srcs = ["rpc_registry.cc"],
     hdrs = ["rpc_registry.h"],
-    visibility = ["//src/rpc_framework/tests:__pkg__"],
+    visibility = [
+        "//src/rpc_framework/tests:__pkg__", 
+        "//src/kv_service:__pkg__"
+    ],
     deps = [
         "//src/rpc_framework:data",
         "//src/rpc_framework:rpc_interface",

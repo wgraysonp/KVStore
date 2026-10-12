@@ -12,7 +12,16 @@
 
 namespace rpc {
 
-class RpcRegistry {
+class IRpcRegistry {
+ public:
+  virtual ~IRpcRegistry() = default;
+  virtual void RegisterRpc(
+      uint32_t rpc_id, std::unique_ptr<IHandlerFactory> handler_factory) = 0;
+  virtual absl::StatusOr<std::string> DispatchRequest(
+      RawMessage raw_request) = 0;
+};
+
+class RpcRegistry : public IRpcRegistry {
  public:
   RpcRegistry() = default;
   RpcRegistry(const RpcRegistry&) = delete;
@@ -22,9 +31,9 @@ class RpcRegistry {
   ~RpcRegistry() = default;
 
   void RegisterRpc(uint32_t rpc_id,
-                   std::unique_ptr<IHandlerFactory> handler_factory);
+                   std::unique_ptr<IHandlerFactory> handler_factory) override;
 
-  absl::StatusOr<std::string> DispatchRequest(RawMessage raw_request);
+  absl::StatusOr<std::string> DispatchRequest(RawMessage raw_request) override;
 
   const absl::flat_hash_map<uint32_t, std::unique_ptr<IHandlerFactory>>&
   GetRegisteredRpcMap() const {

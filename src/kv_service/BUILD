@@ -7,6 +7,8 @@ cc_library(
     hdrs = ["epoll_server.h"],
     visibility = ["//src/kv_service/tests:__pkg__"],
     deps = [
+        "//src/kv_service:consts",
+        "//src/rpc_framework",
         "@abseil-cpp//absl/cleanup:cleanup",
         "@abseil-cpp//absl/log:log",
         "@abseil-cpp//absl/status",

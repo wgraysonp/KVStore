@@ -1,6 +1,7 @@
 #include "src/kv_service/epoll_server.h"
 
 #include <arpa/inet.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -8,14 +9,18 @@
 
 #include <memory>
 #include <thread>
+#include <cstring>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/log/log.h"
+#include "src/rpc_framework/tests/mock_rpc_registry.h"
 
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::NiceMock;
 
 namespace kvstore {
 
@@ -24,14 +29,15 @@ class EpollServerTest : public ::testing::Test {
   std::unique_ptr<EpollServer> server;
   std::thread server_thread;
   absl::Status loop_exit_status;
+  NiceMock<rpc::MockRpcRegistry>* mock_registry_;
 
   void SetUp() override {
-    std::function<std::string(const std::string&)> greeting =
-        [](const std::string& name) -> std::string {
-      return absl::StrFormat("Hello %s", name);
-    };
+    auto movable_registry = std::make_unique<NiceMock<rpc::MockRpcRegistry>>();
+    mock_registry_ = movable_registry.get();
 
-    server = std::make_unique<EpollServer>(8080, greeting, true);
+
+    server =
+        std::make_unique<EpollServer>(8080, std::move(movable_registry), true);
     ABSL_ASSERT_OK(server->Start());
 
     server_thread =
@@ -93,7 +99,9 @@ TEST_F(EpollServerTest, ServerHandlesSingleClientConnection) {
   std::string message = "Grayson";
 
   uint32_t message_len = htonl(static_cast<uint32_t>(message.size()));
+  uint32_t rpc_id = htonl(1);
   send(client_fd, &message_len, 4, 0);
+  send(client_fd, &rpc_id, 4, 0);
   send(client_fd, message.data(), message.size(), 0);
 
   std::string expected_response = "Hello Grayson";
@@ -152,8 +160,10 @@ TEST_F(EpollServerTest, ServerHandlesMultipleClientConnections) {
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
       uint32_t message_len = htonl(static_cast<uint32_t>(message.size()));
+      uint32_t rpc_id = htonl(1);
       send(client_fd, &message_len, 4, 0);
-      send(client_fd, message.data(), message.size(), 0);
+      send(client_fd, &rpc_id, 4, 0);
+      send(client_fd, message.data(), message.size(), MSG_NOSIGNAL);
 
       std::vector<char> size_header(4);
 
@@ -198,7 +208,9 @@ TEST_F(EpollServerTest, ServerDoesNotFailWithBrokenClientConnection) {
   std::string message = "Grayson";
 
   uint32_t message_len = htonl(static_cast<uint32_t>(message.size()));
+  uint32_t rpc_id = htonl(1);
   send(client_fd, &message_len, 4, 0);
+  send(client_fd, &rpc_id, 4, 0);
   send(client_fd, message.data(), message.size(), 0);
 
   char* buffer[1] = {0};

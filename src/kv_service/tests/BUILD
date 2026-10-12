@@ -6,6 +6,7 @@ cc_test(
     srcs = ["epoll_server_test.cc"],
     deps = [
         "//src/kv_service:epoll_server",
+        "//src/rpc_framework/tests:mock_rpc_registry",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",

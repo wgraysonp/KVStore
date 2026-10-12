@@ -6,22 +6,22 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "gtest/gtest_prod.h"
+#include "src/rpc_framework/rpc_registry.h"
 
 namespace kvstore {
 
 class EpollServer {
  public:
-  // TODO - change this later to functions that dont just accept and return
-  // strings. Maybe abseil has something I should be using for futures?
-  using MessageHandler = std::function<std::string(const std::string&)>;
-
-  explicit EpollServer(int port, MessageHandler handler, bool local_only = true)
-      : message_handler_(std::move(handler)),
+  explicit EpollServer(int port,
+                       std::unique_ptr<rpc::IRpcRegistry> rpc_registry,
+                       bool local_only = true)
+      : rpc_registry_(std::move(rpc_registry)),
         port_(port),
         local_only_(local_only) {};
 
@@ -29,7 +29,7 @@ class EpollServer {
   EpollServer(const EpollServer&) = delete;
   EpollServer& operator=(const EpollServer&) = delete;
 
-  bool IsRunning() const { return is_running_;}
+  bool IsRunning() const { return is_running_; }
 
   // start the server
   absl::Status Start();
@@ -40,9 +40,8 @@ class EpollServer {
   void Stop();
 
  private:
-
   FRIEND_TEST(EpollServerTest, SetNonBlockingFailsWithInvalidFD);
-  
+
   // Set a socket file descriptor to non-blocking
   absl::Status SetNonBlocking(int fd);
 
@@ -62,7 +61,7 @@ class EpollServer {
 
   absl::Status HandleClientWrite(int client_fd, const std::string& response);
 
-  MessageHandler message_handler_;
+  std::unique_ptr<rpc::IRpcRegistry> rpc_registry_;
   int port_;
   int listen_fd_ = -1;
   int epoll_fd_ = -1;

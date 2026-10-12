@@ -19,6 +19,9 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "src/kv_service/consts.h"
+#include "src/rpc_framework/data.h"
+#include "src/rpc_framework/rpc_registry.h"
 
 namespace kvstore {
 namespace {
@@ -115,14 +118,9 @@ absl::Status EpollServer::RunLoop() {
       if (errno == EINTR) continue;
       return absl::ErrnoToStatus(errno, "Epoll failed");
     }
-
     ProcessActiveEpollEvents(events, num_fds);
   }
-  return absl::OkStatus();
-}
 
-void EpollServer::Stop() {
-  is_running_ = false;
   if (listen_fd_ >= 0) {
     close(listen_fd_);
     listen_fd_ = -1;
@@ -131,7 +129,11 @@ void EpollServer::Stop() {
     close(epoll_fd_);
     epoll_fd_ = -1;
   }
+
+  return absl::OkStatus();
 }
+
+void EpollServer::Stop() { is_running_ = false; }
 
 absl::Status EpollServer::SetNonBlocking(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
@@ -202,7 +204,10 @@ absl::Status EpollServer::HandleCurrentConnection(int client_fd) {
   char length_buf[4];
   ssize_t bytes_recieved = recv(client_fd, length_buf, 4, 0);
 
-  auto close_fd = absl::MakeCleanup([client_fd](){close(client_fd);});
+  auto close_fd = absl::MakeCleanup([client_fd]() {
+    LOG(INFO) << "Closing Client FD: " << client_fd;
+    close(client_fd);
+  });
 
   if (bytes_recieved < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -223,11 +228,40 @@ absl::Status EpollServer::HandleCurrentConnection(int client_fd) {
         client_fd));
   }
 
+  char rpc_id_buf[4];
+  bytes_recieved = recv(client_fd, rpc_id_buf, 4, 0);
+
+  if (bytes_recieved < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return absl::OkStatus();
+    }
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Fatal read on client fd %d", client_fd));
+
+  } else if (bytes_recieved == 0) {
+    return absl::InvalidArgumentError(
+        "Client message does not contain requested rpc ID.");
+  }
+
+  uint32_t rpc_id = ReadUint32(rpc_id_buf);
+
+  if (rpc_id > MAX_RPC_ID) {
+    return absl::InvalidArgumentError("RPC Id is too large");
+  }
+
   ABSL_ASSIGN_OR_RETURN(std::vector<char> payload,
                         ReadClientPayload(payload_len, client_fd));
 
   std::string command(payload.begin(), payload.end());
-  std::string response = message_handler_(command);
+
+  rpc::RawMessage raw_request{
+      .rpc_id = rpc_id,
+      .payload_size = payload_len,
+      .request_payload = std::move(command),
+  };
+
+  ABSL_ASSIGN_OR_RETURN(std::string response,
+                        rpc_registry_->DispatchRequest(std::move(raw_request)));
 
   ABSL_RETURN_IF_ERROR(HandleClientWrite(client_fd, response));
 

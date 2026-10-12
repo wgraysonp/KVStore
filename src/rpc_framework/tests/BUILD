@@ -27,6 +27,20 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "mock_rpc_registry",
+    hdrs = ["mock_rpc_registry.h"],
+    visibility = ["//src/kv_service/tests:__pkg__"],
+    deps = [
+        "//src/rpc_framework:rpc_interface",
+        "//src/rpc_framework:rpc_registry",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "rpc_registry_test",
     size = "small",

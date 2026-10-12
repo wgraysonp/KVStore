@@ -24,7 +24,6 @@ cc_library(
     hdrs = ["rpc_registry.h"],
     visibility = [
         "//src/rpc_framework/tests:__pkg__", 
-        "//src/kv_service:__pkg__"
     ],
     deps = [
         "//src/rpc_framework:data",
@@ -33,5 +32,15 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "rpc_framework",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//src/rpc_framework:data",
+        "//src/rpc_framework:rpc_interface",
+        "//src/rpc_framework:rpc_registry",
     ],
 )

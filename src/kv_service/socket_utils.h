@@ -24,8 +24,17 @@ uint32_t ReadUint32(const std::string& buffer);
 // considered a failure. total bytes will be returned and the number of bytes
 // read may be less than requested
 absl::StatusOr<std::size_t> ReadFromClient(std::string& mutable_buffer,
-                                       std::size_t offset,
-                                       std::size_t payload_len, int client_fd);
+                                           std::size_t offset,
+                                           std::size_t payload_len,
+                                           int client_fd);
+
+// write at moust n_bytes to client_fd from buffer starting at position
+// buffer.data() + offset returns the total number of bytes written or an error
+// code. If errno is set to EAGAIN or EWOULDBLOCK this is not considered a
+// failure. the number of bytes written may be less than requested
+absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,
+                                          std::size_t offset,
+                                          std::size_t n_bytes, int client_fd);
 
 }  // namespace kvstore
 

@@ -32,18 +32,18 @@ uint32_t ReadUint32(const std::string& buffer) {
   return ntohl(val);
 }
 
-absl::StatusOr<ssize_t> ReadFromClient(std::string& mutable_buffer,
+absl::StatusOr<std::size_t> ReadFromClient(std::string& mutable_buffer,
                                        std::size_t offset,
                                        std::size_t payload_len, int client_fd) {
   mutable_buffer.resize(offset + payload_len);
-  int total_read = 0;
+  std::size_t total_read = 0;
   std::size_t pos = offset;
   while (total_read < payload_len) {
     ssize_t n = recv(client_fd, mutable_buffer.data() + pos,
                      payload_len - total_read, 0);
     if (n > 0) {
-      total_read += n;
-      pos += n;
+      total_read += static_cast<std::size_t>(n);
+      pos += static_cast<std::size_t>(n);
       continue;
     }
 

@@ -23,7 +23,7 @@ uint32_t ReadUint32(const std::string& buffer);
 // or an error code. If errno is set to EAGAIN or EWOULDBLOCK this is not
 // considered a failure. total bytes will be returned and the number of bytes
 // read may be less than requested
-absl::StatusOr<ssize_t> ReadFromClient(std::string& mutable_buffer,
+absl::StatusOr<std::size_t> ReadFromClient(std::string& mutable_buffer,
                                        std::size_t offset,
                                        std::size_t payload_len, int client_fd);
 

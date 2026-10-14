@@ -30,6 +30,7 @@ cc_library(
     name = "client_connection",
     srcs = ["client_connection.cc"],
     hdrs = ["client_connection.h"],
+    visibility = ["//src/endpoint/tests:__pkg__"],
     deps = [
         "//src/endpoint:consts",
         "//src/endpoint:socket_utils",
@@ -46,6 +47,7 @@ cc_library(
     name = "socket_utils",
     srcs = ["socket_utils.cc"],
     hdrs = ["socket_utils.h"],
+    visibility = ["//src/endpoint/tests:__pkg__"],
     deps = [
         "@abseil-cpp//absl/log:log",
         "@abseil-cpp//absl/status",

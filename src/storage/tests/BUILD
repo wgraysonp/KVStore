@@ -36,7 +36,7 @@ cc_library(
     name = "mock_write_ahead_log",
     hdrs = ["mock_write_ahead_log.h"],
     deps = [
-        "//src/endpoint:data",
+        "//src/storage:types",
         "//src/storage:write_ahead",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",

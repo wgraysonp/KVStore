@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
-#include "src/kv_service/data.h"
+#include "src/storage/types.h"
 #include "src/storage/write_ahead.h"
 
 namespace kvstore {

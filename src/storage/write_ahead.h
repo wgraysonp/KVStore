@@ -8,13 +8,13 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "src/kv_service/data.h"
+#include "src/storage/types.h"
 
 namespace kvstore {
 
 class IWriteAheadLog {
  public:
-  IWriteAheadLog() = default; 
+  IWriteAheadLog() = default;
   IWriteAheadLog(const IWriteAheadLog&) = delete;
   IWriteAheadLog& operator=(const IWriteAheadLog&) = delete;
   IWriteAheadLog(IWriteAheadLog&&) noexcept = default;
@@ -33,8 +33,8 @@ class WriteAheadLog : public IWriteAheadLog {
   ~WriteAheadLog() override;
 
   absl::Status LogRequest(const Request& request) override;
-  absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
-  RecoverKVStore() override;
+  absl::StatusOr<absl::flat_hash_map<std::string, std::string>> RecoverKVStore()
+      override;
   absl::Status Close();
 
  private:

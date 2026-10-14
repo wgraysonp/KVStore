@@ -20,7 +20,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "src/kv_service/data.h"
+#include "src/storage/types.h"
 
 namespace kvstore {
 namespace {

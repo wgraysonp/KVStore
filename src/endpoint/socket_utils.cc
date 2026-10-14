@@ -1,4 +1,4 @@
-#include "src/kv_service/socket_utils.h"
+#include "src/endpoint/socket_utils.h"
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -12,7 +12,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-namespace kvstore {
+namespace endpoint {
 
 absl::Status SetNonBlocking(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
@@ -109,4 +109,4 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
 
   return result;
 }
-}  // namespace kvstore
+}  // namespace endpoint

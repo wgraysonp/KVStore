@@ -1,5 +1,5 @@
-#ifndef KVSTORE_SRC_SERVICE_EPOLL_SERVER_H_
-#define KVSTORE_SRC_SERVICE_EPOLL_SERVER_H_
+#ifndef ENDPOINT_EPOLL_SERVER_H_
+#define ENDPOINT_EPOLL_SERVER_H_
 
 #include <sys/epoll.h>
 
@@ -14,7 +14,7 @@
 #include "gtest/gtest_prod.h"
 #include "src/rpc_framework/rpc_registry.h"
 
-namespace kvstore {
+namespace endpoint {
 
 class EpollServer {
  public:
@@ -69,6 +69,6 @@ class EpollServer {
   std::atomic<bool> is_running_ = false;
   bool local_only_ = true;
 };
-}  // namespace kvstore
+}  // namespace endpoint
 
-#endif  // KVSTORE_SRC_SERVICE_EPOLL_SERVER_H_
+#endif  // ENDPOINT_EPOLL_SERVER_H_

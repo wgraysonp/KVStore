@@ -10,12 +10,12 @@
 
 #include "absl/status/statusor.h"
 
-namespace kvstore {
+namespace endpoint {
 
 enum class ReadState {
-  kSUCCESS = 1, // successfully read all requested bytes
-  kEAGAIN = 2, // partial read stopped due to errno EAGAIN or EWOULDBLOCK. 
-  kEOF = 3, // zero bytes read and got EOF packet
+  kSUCCESS = 1,  // successfully read all requested bytes
+  kEAGAIN = 2,   // partial read stopped due to errno EAGAIN or EWOULDBLOCK.
+  kEOF = 3,      // zero bytes read and got EOF packet
 };
 
 struct ReadResult {
@@ -24,8 +24,8 @@ struct ReadResult {
 };
 
 enum class WriteState {
-  kSUCCESS = 1, // successfull write of all requested bytes
-  kEAGAIN = 2 // partial write stopped by EAGAIN or EWOULDBLOCK
+  kSUCCESS = 1,  // successfull write of all requested bytes
+  kEAGAIN = 2    // partial write stopped by EAGAIN or EWOULDBLOCK
 };
 
 struct WriteResult {
@@ -42,9 +42,9 @@ uint32_t ReadUint32(const std::string& buffer);
 // read at most payload_len bytes from client_fd into mutable buffer starting at
 // position mutable_buffer.data() + offset and returns a ReadResult struct
 absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
-                                           std::size_t offset,
-                                           std::size_t payload_len,
-                                           int client_fd);
+                                          std::size_t offset,
+                                          std::size_t payload_len,
+                                          int client_fd);
 
 // write at moust n_bytes to client_fd from buffer starting at position
 // buffer.data() + offset returns the total number of bytes written or an error
@@ -53,6 +53,6 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
                                           std::size_t offset,
                                           std::size_t n_bytes, int client_fd);
 
-}  // namespace kvstore
+}  // namespace endpoint
 
 #endif  // SRC_KVSERVICE_SOCKET_UTILS_H_

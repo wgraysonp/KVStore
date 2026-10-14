@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 
-namespace kvstore {
+namespace endpoint {
 
 enum class RequestType {
   GET = 1,
@@ -33,6 +33,6 @@ struct Response {
   auto operator<=>(const Response&) const = default;
 };
 
-}  // namespace kvstore
+}  // namespace endpoint
 
 #endif  // SRC_SERVICE_KVSTORE_H_

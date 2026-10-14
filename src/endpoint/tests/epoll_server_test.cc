@@ -1,4 +1,4 @@
-#include "src/kv_service/epoll_server.h"
+#include "src/endpoint/epoll_server.h"
 
 #include <arpa/inet.h>
 #include <gmock/gmock.h>
@@ -7,22 +7,22 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <cstring>
 #include <memory>
 #include <thread>
-#include <cstring>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/log/log.h"
 #include "src/rpc_framework/tests/mock_rpc_registry.h"
 
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::NiceMock;
 
-namespace kvstore {
+namespace endpoint {
 
 class EpollServerTest : public ::testing::Test {
  protected:
@@ -34,7 +34,6 @@ class EpollServerTest : public ::testing::Test {
   void SetUp() override {
     auto movable_registry = std::make_unique<NiceMock<rpc::MockRpcRegistry>>();
     mock_registry_ = movable_registry.get();
-
 
     server =
         std::make_unique<EpollServer>(8080, std::move(movable_registry), true);
@@ -254,4 +253,4 @@ TEST_F(EpollServerTest, SetNonBlockingFailsWithInvalidFD) {
   EXPECT_THAT(status, StatusIs(absl::StatusCode::kFailedPrecondition,
                                HasSubstr("Bad file descriptor")));
 }
-}  // namespace kvstore
+}  // namespace endpoint

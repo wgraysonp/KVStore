@@ -13,7 +13,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
-#include "src/kv_service/data.h"
+#include "src/storage/types.h"
 
 using ::absl_testing::StatusIs;
 using ::testing::ContainerEq;
@@ -249,7 +249,7 @@ TEST_F(WriteAheadLogTest,
   int n_lines = 0;
   std::string line;
 
-  while(std::getline(log_file_, line)){
+  while (std::getline(log_file_, line)) {
     n_lines += 1;
   }
   EXPECT_EQ(n_lines, 2);

@@ -9,7 +9,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
-#include "src/kv_service/data.h"
+#include "src/storage/types.h"
 #include "src/storage/write_ahead.h"
 
 namespace kvstore {

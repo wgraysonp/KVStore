@@ -1,4 +1,4 @@
-#include "src/kv_service/epoll_server.h"
+#include "src/endpoint/epoll_server.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -19,11 +19,11 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "src/kv_service/consts.h"
+#include "src/endpoint/consts.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/rpc_registry.h"
 
-namespace kvstore {
+namespace endpoint {
 namespace {
 
 absl::StatusOr<std::vector<char>> ReadClientPayload(int payload_len,
@@ -298,4 +298,4 @@ absl::Status EpollServer::HandleClientWrite(int client_fd,
 
   return absl::OkStatus();
 }
-}  // namespace kvstore
+}  // namespace endpoint

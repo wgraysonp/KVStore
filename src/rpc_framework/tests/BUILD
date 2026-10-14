@@ -30,7 +30,7 @@ cc_library(
 cc_library(
     name = "mock_rpc_registry",
     hdrs = ["mock_rpc_registry.h"],
-    visibility = ["//src/kv_service/tests:__pkg__"],
+    visibility = ["//src/endpoint/tests:__pkg__"],
     deps = [
         "//src/rpc_framework:rpc_interface",
         "//src/rpc_framework:rpc_registry",

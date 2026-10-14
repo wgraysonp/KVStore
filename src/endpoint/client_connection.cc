@@ -1,4 +1,4 @@
-#include "src/kv_service/client_connection.h"
+#include "src/endpoint/client_connection.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -11,11 +11,11 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "src/kv_service/consts.h"
-#include "src/kv_service/socket_utils.h"
+#include "src/endpoint/consts.h"
+#include "src/endpoint/socket_utils.h"
 #include "src/rpc_framework/data.h"
 
-namespace kvstore {
+namespace endpoint {
 
 absl::Status ClientConnection::MakeNonBlocking() {
   ABSL_RETURN_IF_ERROR(SetNonBlocking(client_fd_));
@@ -158,4 +158,4 @@ rpc::RawMessage ClientConnection::MoveClientReadDataToRawMessage() {
   return msg;
 }
 
-}  // namespace kvstore
+}  // namespace endpoint

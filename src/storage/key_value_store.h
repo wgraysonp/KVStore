@@ -8,7 +8,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "src/kv_service/data.h"
+#include "src/storage/types.h"
 #include "src/storage/write_ahead.h"
 
 namespace kvstore {

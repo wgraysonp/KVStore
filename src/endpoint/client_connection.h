@@ -1,5 +1,5 @@
-#ifndef SRC_KVSERVICE_CLIENT_CONNECTION_H_
-#define SRC_KVSERVICE_CLIENT_CONNECTION_H_
+#ifndef ENDPOINT_CLIENT_CONNECTION_H_
+#define ENDPOINT_CLIENT_CONNECTION_H_
 
 #include <unistd.h>
 
@@ -9,11 +9,11 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "src/kv_service/socket_utils.h"
+#include "src/endpoint/socket_utils.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/rpc_registry.h"
 
-namespace kvstore {
+namespace endpoint {
 
 enum class ConnectionStatus {
   CONNECTED_READ = 1,
@@ -60,6 +60,6 @@ class ClientConnection {
   rpc::RawMessage MoveClientReadDataToRawMessage();
 };
 
-}  // namespace kvstore
+}  // namespace endpoint
 
-#endif  // SRC_KVSERVICE_CLIENT_CONNECTION_H_
+#endif  // ENDPOINT_CLIENT_CONNECTION_H_

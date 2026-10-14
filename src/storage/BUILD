@@ -2,12 +2,18 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
+    name = "types",
+    hdrs = ["types.h"],
+    visibility = ["//src/storage/tests:__pkg__"],
+)
+
+cc_library(
     name = "write_ahead",
     srcs = ["write_ahead.cc"],
     hdrs = ["write_ahead.h"],
     visibility = ["//src/storage/tests:__pkg__"],
     deps = [
-        "//src/kv_service:data",
+        "//src/storage:types",
         "@abseil-cpp//absl/cleanup:cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:log",
@@ -24,7 +30,7 @@ cc_library(
     hdrs = ["key_value_store.h"],
     visibility = ["//src/storage/tests:__pkg__"],
     deps = [
-        "//src/kv_service:data",
+        "//src/storage:types",
         "//src/storage:write_ahead",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",

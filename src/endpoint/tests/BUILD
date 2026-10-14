@@ -14,3 +14,17 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "socket_utils_test",
+    size = "small",
+    srcs = ["socket_utils_test.cc"],
+    deps = [
+        "//src/endpoint:socket_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

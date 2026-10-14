@@ -63,7 +63,7 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
           errno,
           absl::StrFormat("Dropped client fd %d mid payload read", client_fd));
     }
-    
+
     // n > 0 - update counters and continue the loop
     result.bytes_read += static_cast<std::size_t>(n);
     pos += static_cast<std::size_t>(n);
@@ -90,19 +90,18 @@ absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,
       pos += static_cast<std::size_t>(n);
       continue;
     }
+    if (n < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return total_write;
+      }
+      return absl::ErrnoToStatus(
+          errno, absl::StrFormat("Fatal send on client fd %d", client_fd));
+    }
 
-    if (n == 0) {
-      return absl::InternalError(
+    // send should not return zero in this loop. If it does there is
+    // some logic error.
+    return absl::InternalError(
           "Send returned zero bytes. This should never happen");
-    }
-
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return total_write;
-    }
-
-    // n < 0 and errno is not EAGAIN or EWOULDBLOCK - fatal system error
-    return absl::ErrnoToStatus(
-        errno, absl::StrFormat("Fatal send on client fd %d", client_fd));
   }
 
   return total_write;

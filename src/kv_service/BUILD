@@ -7,6 +7,7 @@ cc_library(
     hdrs = ["epoll_server.h"],
     visibility = ["//src/kv_service/tests:__pkg__"],
     deps = [
+        "//src/kv_service:client_connection",
         "//src/kv_service:consts",
         "//src/rpc_framework",
         "@abseil-cpp//absl/cleanup:cleanup",
@@ -31,6 +32,33 @@ cc_library(
     visibility = [
         "//src/storage:__pkg__",
         "//src/storage/tests:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "client_connection",
+    srcs = ["client_connection.cc"],
+    hdrs = ["client_connection.h"],
+    deps = [
+        "//src/kv_service:consts",
+        "//src/kv_service:socket_utils",
+        "//src/rpc_framework",
+        "@abseil-cpp//absl/log:log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:strings",
+    ],
+)
+
+cc_library(
+    name = "socket_utils",
+    srcs = ["socket_utils.cc"],
+    hdrs = ["socket_utils.h"],
+    deps = [
+        "@abseil-cpp//absl/log:log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 

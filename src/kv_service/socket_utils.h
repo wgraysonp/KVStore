@@ -12,6 +12,17 @@
 
 namespace kvstore {
 
+enum class ReadState {
+  kSUCCESS = 1, // successfully read all requested bytes
+  kEAGAIN = 2, // partial read stopped due to errno EAGAIN or EWOULDBLOCK. 
+  kEOF = 3, // zero bytes read and got EOF packet
+};
+
+struct ReadResult {
+  ReadState state = ReadState::kSUCCESS;
+  std::size_t bytes_read = 0;
+};
+
 // set a file descriptor to non blocking mode
 absl::Status SetNonBlocking(int fd);
 
@@ -19,11 +30,8 @@ absl::Status SetNonBlocking(int fd);
 uint32_t ReadUint32(const std::string& buffer);
 
 // read at most payload_len bytes from client_fd into mutable buffer starting at
-// position mutable_buffer.data() + offset and returns the number of bytes read
-// or an error code. If errno is set to EAGAIN or EWOULDBLOCK this is not
-// considered a failure. total bytes will be returned and the number of bytes
-// read may be less than requested
-absl::StatusOr<std::size_t> ReadFromClient(std::string& mutable_buffer,
+// position mutable_buffer.data() + offset and returns a ReadResult struct
+absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
                                            std::size_t offset,
                                            std::size_t payload_len,
                                            int client_fd);

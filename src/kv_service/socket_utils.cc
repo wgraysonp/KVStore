@@ -33,39 +33,43 @@ uint32_t ReadUint32(const std::string& buffer) {
   return ntohl(val);
 }
 
-absl::StatusOr<std::size_t> ReadFromClient(std::string& mutable_buffer,
-                                           std::size_t offset,
-                                           std::size_t payload_len,
-                                           int client_fd) {
+absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
+                                          std::size_t offset,
+                                          std::size_t payload_len,
+                                          int client_fd) {
   mutable_buffer.resize(offset + payload_len);
-  std::size_t total_read = 0;
   std::size_t pos = offset;
-  while (total_read < payload_len) {
-    ssize_t n = recv(client_fd, mutable_buffer.data() + pos,
-                     payload_len - total_read, 0);
-    if (n > 0) {
-      total_read += static_cast<std::size_t>(n);
-      pos += static_cast<std::size_t>(n);
-      continue;
-    }
+  ReadResult result;
 
+  while (result.bytes_read < payload_len) {
+    ssize_t n = recv(client_fd, mutable_buffer.data() + pos,
+                     payload_len - result.bytes_read, 0);
     if (n == 0) {
+      if (result.bytes_read == 0) {
+        result.state = ReadState::kEOF;
+        return result;
+      }
       return absl::InternalError(
           absl::StrFormat("Dropped client fd %d mid stream."));
     }
 
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      mutable_buffer.resize(offset + total_read);
-      return total_read;
+    if (n < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        mutable_buffer.resize(offset + result.bytes_read);
+        result.state = ReadState::kEAGAIN;
+        return result;
+      }
+      return absl::ErrnoToStatus(
+          errno,
+          absl::StrFormat("Dropped client fd %d mid payload read", client_fd));
     }
-
-    // n < 0 and errno is not EAGAIN or EWOULDBLOCK - fatal system error
-    return absl::ErrnoToStatus(
-        errno,
-        absl::StrFormat("Dropped client fd %d mid payload read", client_fd));
+    
+    // n > 0 - update counters and continue the loop
+    result.bytes_read += static_cast<std::size_t>(n);
+    pos += static_cast<std::size_t>(n);
   }
 
-  return total_read;
+  return result;
 }
 
 absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,

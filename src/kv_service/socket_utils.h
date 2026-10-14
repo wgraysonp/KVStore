@@ -23,6 +23,16 @@ struct ReadResult {
   std::size_t bytes_read = 0;
 };
 
+enum class WriteState {
+  kSUCCESS = 1, // successfull write of all requested bytes
+  kEAGAIN = 2 // partial write stopped by EAGAIN or EWOULDBLOCK
+};
+
+struct WriteResult {
+  WriteState state = WriteState::kSUCCESS;
+  std::size_t bytes_written = 0;
+};
+
 // set a file descriptor to non blocking mode
 absl::Status SetNonBlocking(int fd);
 
@@ -38,9 +48,8 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
 
 // write at moust n_bytes to client_fd from buffer starting at position
 // buffer.data() + offset returns the total number of bytes written or an error
-// code. If errno is set to EAGAIN or EWOULDBLOCK this is not considered a
-// failure. the number of bytes written may be less than requested
-absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,
+// code. Returns WriteResult struct
+absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
                                           std::size_t offset,
                                           std::size_t n_bytes, int client_fd);
 

@@ -72,7 +72,7 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
   return result;
 }
 
-absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,
+absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
                                           std::size_t offset,
                                           std::size_t n_bytes, int client_fd) {
   if (buffer.size() < n_bytes + offset) {
@@ -80,19 +80,21 @@ absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,
         "Buffer size is too small for requested write");
   }
 
-  std::size_t total_write = 0;
+  WriteResult result;
+
   std::size_t pos = offset;
-  while (total_write < n_bytes) {
-    ssize_t n = send(client_fd, buffer.data() + pos, n_bytes - total_write,
+  while (result.bytes_written < n_bytes) {
+    ssize_t n = send(client_fd, buffer.data() + pos, n_bytes - result.bytes_written,
                      MSG_NOSIGNAL);
     if (n > 0) {
-      total_write += static_cast<std::size_t>(n);
+      result.bytes_written += static_cast<std::size_t>(n);
       pos += static_cast<std::size_t>(n);
       continue;
     }
     if (n < 0) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return total_write;
+        result.state = WriteState::kEAGAIN;
+        return result;
       }
       return absl::ErrnoToStatus(
           errno, absl::StrFormat("Fatal send on client fd %d", client_fd));
@@ -104,6 +106,6 @@ absl::StatusOr<std::size_t> WriteToClient(const std::string& buffer,
           "Send returned zero bytes. This should never happen");
   }
 
-  return total_write;
+  return result;
 }
 }  // namespace kvstore

@@ -9,6 +9,7 @@
 #include <string>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace kvstore {
@@ -84,8 +85,8 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
 
   std::size_t pos = offset;
   while (result.bytes_written < n_bytes) {
-    ssize_t n = send(client_fd, buffer.data() + pos, n_bytes - result.bytes_written,
-                     MSG_NOSIGNAL);
+    ssize_t n = send(client_fd, buffer.data() + pos,
+                     n_bytes - result.bytes_written, MSG_NOSIGNAL);
     if (n > 0) {
       result.bytes_written += static_cast<std::size_t>(n);
       pos += static_cast<std::size_t>(n);
@@ -103,7 +104,7 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
     // send should not return zero in this loop. If it does there is
     // some logic error.
     return absl::InternalError(
-          "Send returned zero bytes. This should never happen");
+        "Send returned zero bytes. This should never happen");
   }
 
   return result;

@@ -92,6 +92,7 @@ TEST_F(SocketUtilsTest,
   ABSL_ASSERT_OK(result);
   EXPECT_EQ(result.value().bytes_read, (std::size_t)0);
   EXPECT_EQ(result.value().state, ReadState::kEOF);
+  EXPECT_EQ(buffer, "");
 }
 
 TEST_F(SocketUtilsTest, ReadFromClientReturnsErrorOnMidReadClientClose) {
@@ -106,7 +107,74 @@ TEST_F(SocketUtilsTest, ReadFromClientReturnsErrorOnMidReadClientClose) {
   absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 18, remote_fd_);
 
   EXPECT_THAT(result,
-              StatusIs(absl::StatusCode::kInternal, HasSubstr("mid stream")));
+              StatusIs(absl::StatusCode::kCancelled,
+                       HasSubstr("closed connection cleanly mid read.")));
+  EXPECT_EQ(buffer, "");
+}
+
+TEST_F(SocketUtilsTest, ReadFromClientReturnsErrorIfRSTIsRecieved) {
+  // send some data from the server fd to the client fd
+  int bytes_sent = send(remote_fd_, "Half Data", 9, 0);
+  ASSERT_EQ(bytes_sent, 9);
+
+  // close local_fd_ without reading the buffer to send RST to reciever.
+  close(local_fd_);
+  local_fd_ = -1;
+
+  std::string buffer('\0', 10);
+
+  absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 10, remote_fd_);
+
+  // check that the test worked as intended and errno was set to ECONNRESET
+  ASSERT_EQ(errno, ECONNRESET);
+
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kUnavailable,
+                               HasSubstr("Connection reset by peer")));
+  EXPECT_EQ(buffer, "");
+}
+
+// tests that if the server reads partial data without a closed connection
+// and the socket is non-blocking then ReadFromClient returns with an
+// appropriate ReadStatus code
+TEST_F(SocketUtilsTest, ReadFromClientReturnsEAGAINonValidPartialRead) {
+  ABSL_ASSERT_OK(SetNonBlocking(remote_fd_));
+
+  // send some data from the server fd to the client fd
+  int bytes_sent = send(local_fd_, "Half Data", 9, 0);
+  ASSERT_EQ(bytes_sent, 9);
+
+  // keep the local file descriptor open
+
+  std::string buffer('\0', 10);
+  // attempt to read more bytes than the client has sent
+  absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 10, remote_fd_);
+
+  ABSL_ASSERT_OK(result);
+
+  // check that the test worked as intended and errno was set to EAGAIN
+  ASSERT_EQ(errno, EAGAIN);
+
+  EXPECT_EQ(result.value().bytes_read, (std::size_t)9);
+  EXPECT_EQ(result.value().state, ReadState::kEAGAIN);
+  EXPECT_EQ(buffer, "Half Data");
+}
+
+TEST_F(SocketUtilsTest, ReadFromClientCorrectlyPerformsFullRead) {
+  ABSL_ASSERT_OK(SetNonBlocking(remote_fd_));
+
+  // send all the data to the server
+  int bytes_sent = send(local_fd_, "Full Data", 9, 0);
+  ASSERT_EQ(bytes_sent, 9);
+
+  std::string buffer('\0', 9);
+  // read all the bytes from the client
+  absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 9, remote_fd_);
+
+  ABSL_ASSERT_OK(result);
+
+  EXPECT_EQ(result.value().bytes_read, (std::size_t)9);
+  EXPECT_EQ(result.value().state, ReadState::kSUCCESS);
+  EXPECT_EQ(buffer, "Full Data");
 }
 
 }  // namespace endpoint

@@ -40,7 +40,9 @@ absl::Status SetNonBlocking(int fd);
 absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer);
 
 // read at most payload_len bytes from client_fd into mutable buffer starting at
-// position mutable_buffer.data() + offset and returns a ReadResult struct
+// position mutable_buffer.data() + offset and returns a ReadResult struct.
+// Before returning, mutable_buffer is resized to offset + result.bytes_read on 
+// success or offset on error.
 absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
                                           std::size_t offset,
                                           std::size_t payload_len,

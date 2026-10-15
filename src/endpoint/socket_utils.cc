@@ -46,15 +46,17 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
   ReadResult result;
 
   while (result.bytes_read < payload_len) {
-    ssize_t n = recv(client_fd, mutable_buffer.data() + pos,
-                     payload_len - result.bytes_read, 0);
+    const ssize_t n = recv(client_fd, mutable_buffer.data() + pos,
+                           payload_len - result.bytes_read, 0);
     if (n == 0) {
       if (result.bytes_read == 0) {
+        mutable_buffer.resize(offset + result.bytes_read);
         result.state = ReadState::kEOF;
         return result;
       }
-      return absl::InternalError(
-          absl::StrFormat("Dropped client fd %d mid stream.", client_fd));
+      mutable_buffer.resize(offset);
+      return absl::CancelledError(absl::StrFormat(
+          "Client fd %d closed connection cleanly mid read.", client_fd));
     }
 
     if (n < 0) {
@@ -63,6 +65,7 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
         result.state = ReadState::kEAGAIN;
         return result;
       }
+      mutable_buffer.resize(offset);
       return absl::ErrnoToStatus(
           errno,
           absl::StrFormat("Dropped client fd %d mid payload read", client_fd));
@@ -88,8 +91,8 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
 
   std::size_t pos = offset;
   while (result.bytes_written < n_bytes) {
-    ssize_t n = send(client_fd, buffer.data() + pos,
-                     n_bytes - result.bytes_written, MSG_NOSIGNAL);
+    const ssize_t n = send(client_fd, buffer.data() + pos,
+                           n_bytes - result.bytes_written, MSG_NOSIGNAL);
     if (n > 0) {
       result.bytes_written += static_cast<std::size_t>(n);
       pos += static_cast<std::size_t>(n);

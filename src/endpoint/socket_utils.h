@@ -37,7 +37,7 @@ struct WriteResult {
 absl::Status SetNonBlocking(int fd);
 
 // Convert 4 bytes from big-endian network byte order to host byte order
-uint32_t ReadUint32(const std::string& buffer);
+absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer);
 
 // read at most payload_len bytes from client_fd into mutable buffer starting at
 // position mutable_buffer.data() + offset and returns a ReadResult struct

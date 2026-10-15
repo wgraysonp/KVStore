@@ -57,7 +57,7 @@ class ClientConnection {
 
   // creates a raw message struct from the read_buffers to send to rpc routing,
   // clears the intrenal read buffers, and sets bytes_read trackers to zero.
-  rpc::RawMessage MoveClientReadDataToRawMessage();
+  absl::StatusOr<rpc::RawMessage> MoveClientReadDataToRawMessage();
 };
 
 }  // namespace endpoint

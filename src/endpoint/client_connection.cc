@@ -38,7 +38,8 @@ absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
           return connection_status_;
       }
     } else if (connection_status_ == ConnectionStatus::CONNECTED_DISPATCH) {
-      rpc::RawMessage msg = MoveClientReadDataToRawMessage();
+      ABSL_ASSIGN_OR_RETURN(rpc::RawMessage msg,
+                            MoveClientReadDataToRawMessage());
       ABSL_ASSIGN_OR_RETURN(response_buffer_,
                             rpc_registry_->DispatchRequest(std::move(msg)));
       connection_status_ = ConnectionStatus::CONNECTED_WRITE;
@@ -92,8 +93,11 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
 
   // TODO: clean this up and maybe move it to a helper.
 
+  ABSL_ASSIGN_OR_RETURN(uint32_t uint32_payload_size,
+                        ReadUint32(size_header_buffer_));
+
   std::size_t expected_payload_size =
-      static_cast<std::size_t>(ReadUint32(size_header_buffer_));
+      static_cast<std::size_t>(uint32_payload_size);
 
   if (expected_payload_size > MAX_CLIENT_PAYLOAD_SIZE) {
     return absl::InvalidArgumentError("Requested client payload is too large");
@@ -140,14 +144,17 @@ absl::StatusOr<WriteState> ClientConnection::PerformClientWrite() {
       total_response_bytes, response_bytes_written_));
 }
 
-rpc::RawMessage ClientConnection::MoveClientReadDataToRawMessage() {
+absl::StatusOr<rpc::RawMessage>
+ClientConnection::MoveClientReadDataToRawMessage() {
   rpc::RawMessage msg;
 
-  msg.payload_size = ReadUint32(size_header_buffer_);
+  ABSL_ASSIGN_OR_RETURN(uint32_t payload_size, ReadUint32(size_header_buffer_));
+  msg.payload_size = payload_size;
   size_header_buffer_.clear();
   size_header_bytes_read_ = 0;
 
-  msg.rpc_id = ReadUint32(rpc_id_buffer_);
+  ABSL_ASSIGN_OR_RETURN(uint32_t rpc_id, ReadUint32(rpc_id_buffer_));
+  msg.rpc_id = rpc_id;
   rpc_id_buffer_.clear();
   rpc_id_header_bytes_read_ = 0;
 

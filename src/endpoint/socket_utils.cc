@@ -28,7 +28,10 @@ absl::Status SetNonBlocking(int fd) {
   return absl::OkStatus();
 }
 
-uint32_t ReadUint32(const std::string& buffer) {
+absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer) {
+  if (buffer.size() != 4) {
+    return absl::InvalidArgumentError("Buffer must be exactly four bytes.");
+  }
   uint32_t val;
   std::memcpy(&val, buffer.data(), 4);
   return ntohl(val);
@@ -51,7 +54,7 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
         return result;
       }
       return absl::InternalError(
-          absl::StrFormat("Dropped client fd %d mid stream."));
+          absl::StrFormat("Dropped client fd %d mid stream.", client_fd));
     }
 
     if (n < 0) {

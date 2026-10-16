@@ -85,7 +85,7 @@ TEST_F(SocketUtilsTest,
   // set local_fd_ to -1 to prevent double close in TearDown
   local_fd_ = -1;
 
-  std::string buffer('\0', 5);
+  std::string buffer(5, '\0');
 
   absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 5, remote_fd_);
 
@@ -102,7 +102,7 @@ TEST_F(SocketUtilsTest, ReadFromClientReturnsErrorOnMidReadClientClose) {
   close(local_fd_);
   local_fd_ = -1;
 
-  std::string buffer('\0', 18);
+  std::string buffer(18, '\0');
 
   absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 18, remote_fd_);
 
@@ -121,7 +121,7 @@ TEST_F(SocketUtilsTest, ReadFromClientReturnsErrorIfRSTIsRecieved) {
   close(local_fd_);
   local_fd_ = -1;
 
-  std::string buffer('\0', 10);
+  std::string buffer(10, '\0');
 
   absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 10, remote_fd_);
 
@@ -145,7 +145,7 @@ TEST_F(SocketUtilsTest, ReadFromClientReturnsEAGAINonValidPartialRead) {
 
   // keep the local file descriptor open
 
-  std::string buffer('\0', 10);
+  std::string buffer(10, '\0');
   // attempt to read more bytes than the client has sent
   absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 10, remote_fd_);
 
@@ -166,7 +166,7 @@ TEST_F(SocketUtilsTest, ReadFromClientCorrectlyPerformsFullRead) {
   int bytes_sent = send(local_fd_, "Full Data", 9, 0);
   ASSERT_EQ(bytes_sent, 9);
 
-  std::string buffer('\0', 9);
+  std::string buffer(9, '\0');
   // read all the bytes from the client
   absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 0, 9, remote_fd_);
 
@@ -175,6 +175,56 @@ TEST_F(SocketUtilsTest, ReadFromClientCorrectlyPerformsFullRead) {
   EXPECT_EQ(result.value().bytes_read, (std::size_t)9);
   EXPECT_EQ(result.value().state, ReadState::kSUCCESS);
   EXPECT_EQ(buffer, "Full Data");
+}
+
+TEST_F(SocketUtilsTest,
+       ReadFromClientCorrectlyPerformsFullReadIntoPartiallyFullBuffer) {
+  ABSL_ASSERT_OK(SetNonBlocking(remote_fd_));
+
+  // send only "Data" to the server. We simulate "Full " having already been
+  // read in a previous call
+  int bytes_sent = send(local_fd_, "Data", 4, 0);
+  ASSERT_EQ(bytes_sent, 4);
+
+  std::string buffer = "Full ";
+  // read all the bytes from the client
+  absl::StatusOr<ReadResult> result = ReadFromClient(buffer, 5, 4, remote_fd_);
+
+  ABSL_ASSERT_OK(result);
+
+  EXPECT_EQ(result.value().bytes_read, (std::size_t)4);
+  EXPECT_EQ(result.value().state, ReadState::kSUCCESS);
+  EXPECT_EQ(buffer, "Full Data");
+}
+
+TEST_F(SocketUtilsTest, WriteToClientReturnsErrorIfBufferTooSmall) {
+  std::string buffer(10, 'A');
+
+  // offset 5 + bytes to write 6 is too large
+  absl::StatusOr<WriteResult> result = WriteToClient(buffer, 5, 6, remote_fd_);
+
+  EXPECT_THAT(
+      result,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Buffer size is too small for requested write")));
+}
+
+TEST_F(SocketUtilsTest, WriteToClientFailsOnSendToBrokenPipeButDoesNotCrash) {
+  // close the client file descriptor
+  close(local_fd_);
+  local_fd_ = -1;
+
+  std::string buffer = "Hello";
+
+  // attempt to send the message. This should set fail and set errno to EPIPE
+  absl::StatusOr<WriteResult> result = WriteToClient(buffer, 0, 5, remote_fd_);
+
+  // if we make it to this assert statement, it also verifies that SIGPIPE
+  // was correctly intercepted instead of killing the process
+  ASSERT_EQ(errno, EPIPE);
+
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kFailedPrecondition,
+                               HasSubstr("Broken pipe")));
 }
 
 }  // namespace endpoint

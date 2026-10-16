@@ -38,9 +38,9 @@ absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer) {
 }
 
 absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
-                                          std::size_t offset,
-                                          std::size_t payload_len,
-                                          int client_fd) {
+                                          const std::size_t offset,
+                                          const std::size_t payload_len,
+                                          const int client_fd) {
   mutable_buffer.resize(offset + payload_len);
   std::size_t pos = offset;
   ReadResult result;
@@ -80,8 +80,9 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
 }
 
 absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
-                                          std::size_t offset,
-                                          std::size_t n_bytes, int client_fd) {
+                                          const std::size_t offset,
+                                          const std::size_t n_bytes,
+                                          const int client_fd) {
   if (buffer.size() < n_bytes + offset) {
     return absl::InvalidArgumentError(
         "Buffer size is too small for requested write");

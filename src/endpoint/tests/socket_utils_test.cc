@@ -227,4 +227,64 @@ TEST_F(SocketUtilsTest, WriteToClientFailsOnSendToBrokenPipeButDoesNotCrash) {
                                HasSubstr("Broken pipe")));
 }
 
+TEST_F(SocketUtilsTest, WriteToClientReturnsCorrectCodeOnEAGAIN) {
+  ABSL_ASSERT_OK(SetNonBlocking(remote_fd_));
+
+  absl::StatusOr<WriteResult> result;
+  std::size_t write_size = 1024 * 64;
+  int max_attempts = 10;
+  int n_attempts = 0;
+
+  // write to the send buffer in a loop until it is full
+  while (n_attempts++ < max_attempts) {
+    std::string buffer(write_size, 'a');  // 64 KB
+    result = WriteToClient(buffer, 0, write_size, remote_fd_);
+    ABSL_ASSERT_OK(result);
+    if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+  }
+  if (n_attempts >= max_attempts) {
+    FAIL() << "Hit max attempts before errno was set to EAGAIN";
+  }
+  ASSERT_EQ(result.value().state, WriteState::kEAGAIN);
+  ASSERT_LE(result.value().bytes_written, write_size);
+}
+
+TEST_F(SocketUtilsTest, WriteToClientReturnsSuccessfullyIfZeroBytesAreWritten) {
+  std::string empty = "";
+  auto res = WriteToClient(empty, 0, 0, remote_fd_);
+  ABSL_ASSERT_OK(res);
+  EXPECT_EQ(res.value().bytes_written, (std::size_t)0);
+  EXPECT_EQ(res.value().state, WriteState::kSUCCESS);
+}
+
+TEST_F(SocketUtilsTest, WriteToClientPerformsFullWriteSuccessfully) {
+  std::string good_write = "Full Write";
+  absl::StatusOr<WriteResult> result =
+      WriteToClient(good_write, 0, 10, remote_fd_);
+  ABSL_ASSERT_OK(result);
+  EXPECT_EQ(result.value().bytes_written, (std::size_t)10);
+  EXPECT_EQ(result.value().state, WriteState::kSUCCESS);
+
+  std::string client_buf;
+  client_buf.resize(10);
+  ASSERT_EQ(recv(local_fd_, client_buf.data(), 10, 0), 10);
+  EXPECT_EQ(client_buf, "Full Write");
+}
+
+TEST_F(SocketUtilsTest,
+       WriteToClientPerformsFullWriteSuccessfullyFromPositiveOffset) {
+  std::string partial_write = "Old Data Write";
+  absl::StatusOr<WriteResult> result =
+      WriteToClient(partial_write, 9, 5, remote_fd_);
+  ABSL_ASSERT_OK(result) << "Expected Ok but Got "
+                         << result.status().ToString();
+  EXPECT_EQ(result.value().bytes_written, (std::size_t)5);
+  EXPECT_EQ(result.value().state, WriteState::kSUCCESS);
+
+  std::string client_buf;
+  client_buf.resize(5);
+  ASSERT_EQ(recv(local_fd_, client_buf.data(), 5, 0), 5);
+  EXPECT_EQ(client_buf, "Write");
+}
+
 }  // namespace endpoint

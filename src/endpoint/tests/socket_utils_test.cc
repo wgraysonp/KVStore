@@ -19,11 +19,11 @@ namespace endpoint {
 
 class SocketUtilsTest : public ::testing::Test {
  protected:
-  int sv[2] = {-1, -1};
   int local_fd_ = -1;
   int remote_fd_ = -1;
 
   void SetUp() override {
+    int sv[2];
     ASSERT_GE(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0)
         << "socket pair failed";
     local_fd_ = sv[0];
@@ -31,8 +31,8 @@ class SocketUtilsTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    if (sv[0] != -1) close(sv[0]);
-    if (sv[1] != -1) close(sv[1]);
+    if (local_fd_ != -1) close(local_fd_);
+    if (remote_fd_ != -1) close(remote_fd_);
   }
 };
 

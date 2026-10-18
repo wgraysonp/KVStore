@@ -28,3 +28,19 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "client_connection_test",
+    size = "small",
+    srcs = ["client_connection_test.cc"],
+    deps = [
+        "//src/endpoint:client_connection",
+        "//src/endpoint:socket_utils",
+        "//src/rpc_framework/tests:mock_rpc_registry",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

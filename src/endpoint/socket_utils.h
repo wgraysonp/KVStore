@@ -39,9 +39,12 @@ absl::Status SetNonBlocking(int fd);
 // Convert 4 bytes from big-endian network byte order to host byte order
 absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer);
 
+// Convert uint32_t to network byte order and return the bytes in a std::string
+std::string ConvertUint32ToNetworkBytes(uint32_t num);
+
 // read at most payload_len bytes from client_fd into mutable buffer starting at
 // position mutable_buffer.data() + offset and returns a ReadResult struct.
-// Before returning, mutable_buffer is resized to offset + result.bytes_read on 
+// Before returning, mutable_buffer is resized to offset + result.bytes_read on
 // success or offset on error.
 absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
                                           std::size_t offset,

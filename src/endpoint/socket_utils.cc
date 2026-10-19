@@ -37,6 +37,14 @@ absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer) {
   return ntohl(val);
 }
 
+std::string ConvertUint32ToNetworkBytes(uint32_t num) {
+  std::string bytes;
+  bytes.resize(sizeof(uint32_t));
+  uint32_t network_order_num = htonl(num);
+  std::memcpy(bytes.data(), &network_order_num, sizeof(uint32_t));
+  return bytes;
+}
+
 absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
                                           const std::size_t offset,
                                           const std::size_t payload_len,

@@ -31,7 +31,10 @@ absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
           connection_status_ = ConnectionStatus::CONNECTED_DISPATCH;
           break;
         case ReadState::kEAGAIN:
+
           // the read did not finish. Return the persistant read state to caller
+          LOG(INFO) << "Read for client fd " << client_fd_
+                    << " interrupted by EAGAIN";
           return connection_status_;
         case ReadState::kEOF:
           connection_status_ = ConnectionStatus::DISCONNECTED_SUCCESS;
@@ -54,10 +57,14 @@ absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
       ABSL_ASSIGN_OR_RETURN(WriteState write_state, PerformClientWrite());
 
       if (write_state == WriteState::kEAGAIN) {
+        LOG(INFO) << "Write for client fd " << client_fd_
+                  << "interupted by EAGAIN";
         return connection_status_;
       }
 
       // reset to prepare for future events
+      response_header_buffer_.clear();
+      response_header_bytes_written_ = 0;
       response_buffer_.clear();
       response_bytes_written_ = 0;
       connection_status_ = ConnectionStatus::CONNECTED_READ;

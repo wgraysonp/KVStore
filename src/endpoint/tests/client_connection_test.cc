@@ -107,6 +107,80 @@ TEST_F(ClientConnectionTest, HandleEventSuccessfullyHandlesFullEventCycle) {
   EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
 }
 
+TEST_F(ClientConnectionTest,
+       HandleEventSuccessfullyResumesAndHandlesEventWhenSentPartialPayload) {
+  // here we mimic the case that the client sends the full payload "Grayson",
+  // but the read is interupted by EAGAIN.
+
+  ABSL_ASSERT_OK(client_connection_->MakeNonBlocking());
+
+  std::string half_payload = "Gray";
+
+  // we promise to send 7 bytes for the full payload "Grayson"
+  uint32_t payload_size = htonl(7);
+  uint32_t rpc_id = htonl(1);
+  char size_header[4];
+  char rpc_id_header[4];
+  std::memcpy(&size_header, &payload_size, 4);
+  std::memcpy(&rpc_id_header, &rpc_id, 4);
+
+  // send the size and rpc id headers and partial client payload
+  ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, half_payload.data(), half_payload.size(), 0), 4);
+
+  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
+                         << status.status().ToString();
+
+  // we should still be connected and ready to read
+  EXPECT_EQ(status.value(), ConnectionStatus::CONNECTED_READ);
+
+  // send the remaining portion of the payload to mimic remaining packets
+  // arriving after EAGAIN
+  std::string second_half_payload = "son";
+  ASSERT_EQ(send(local_fd_, second_half_payload.data(),
+                 second_half_payload.size(), 0),
+            3);
+
+  // handle the new event
+  status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
+                         << status.status().ToString();
+
+  // the mock rpc registry should return this to client_connection_, which
+  // shoud attempt to send it to the client
+  std::string expected_response = "Hello Grayson";
+
+  std::string response_header_buffer;
+  response_header_buffer.resize(4);
+  std::string client_buffer;
+  client_buffer.resize(expected_response.size());
+
+  // HandleEvent should have written back to client. Read the header, then read
+  // 13 bytes, which is the size of expected response
+  ASSERT_EQ(recv(local_fd_, response_header_buffer.data(), 4, 0), 4);
+  ASSERT_EQ(recv(local_fd_, client_buffer.data(), expected_response.size(), 0),
+            13);
+
+  uint32_t header;
+  std::memcpy(&header, response_header_buffer.data(), 4);
+  EXPECT_EQ(ntohl(header), (uint32_t)13);
+  EXPECT_EQ(client_buffer, expected_response);
+
+  // close the local_fd_ to send a FIN packet.
+  close(local_fd_);
+  local_fd_ = -1;
+
+  status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
+                         << status.status().ToString();
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
+}
+
 TEST_F(ClientConnectionTest, HandleEventFailsIfReadFromClientReturnsError) {
   // send some data from the server fd to the client fd
   int bytes_sent = send(remote_fd_, "Half Data", 9, 0);

@@ -78,6 +78,15 @@ TEST_F(SocketUtilsTest, ReadUint32CorrectlyReadsUint32) {
       << test_num;
 }
 
+TEST_F(SocketUtilsTest, ConvertUint32ToNetworkBytesCorrectlyConvertUint32){
+  uint32_t expected_num = 75;
+  std::string num_network_bytes = ConvertUint32ToNetworkBytes(expected_num);
+
+  uint32_t actual_num;
+  std::memcpy(&actual_num, num_network_bytes.data(), sizeof(uint32_t));
+  EXPECT_EQ(expected_num, ntohl(actual_num));
+}
+
 TEST_F(SocketUtilsTest,
        ReadFromClientReturnsEOFStatusUponClientCloseAndZeroByteRead) {
   close(local_fd_);

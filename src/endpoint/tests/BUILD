@@ -35,6 +35,7 @@ cc_test(
     srcs = ["client_connection_test.cc"],
     deps = [
         "//src/endpoint:client_connection",
+        "//src/endpoint:consts",
         "//src/endpoint:socket_utils",
         "//src/rpc_framework/tests:mock_rpc_registry",
         "@abseil-cpp//absl/status",

@@ -42,6 +42,13 @@ absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
                             MoveClientReadDataToRawMessage());
       ABSL_ASSIGN_OR_RETURN(response_buffer_,
                             rpc_registry_->DispatchRequest(std::move(msg)));
+
+      // store the size of the response in network byte order
+      uint32_t big_endian_response_size = htonl(response_buffer_.size());
+      response_header_buffer_.resize(HEADER_INT_SIZE);
+      std::memcpy(response_header_buffer_.data(), &big_endian_response_size,
+                  HEADER_INT_SIZE);
+
       connection_status_ = ConnectionStatus::CONNECTED_WRITE;
     } else if (connection_status_ == ConnectionStatus::CONNECTED_WRITE) {
       ABSL_ASSIGN_OR_RETURN(WriteState write_state, PerformClientWrite());
@@ -127,12 +134,23 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
 }
 
 absl::StatusOr<WriteState> ClientConnection::PerformClientWrite() {
-  std::size_t total_response_bytes = response_buffer_.size();
-  if (response_bytes_written_ < total_response_bytes) {
+  if (response_header_bytes_written_ < HEADER_INT_SIZE) {
+    ABSL_ASSIGN_OR_RETURN(
+        WriteResult write_result,
+        WriteToClient(response_header_buffer_, response_header_bytes_written_,
+                      HEADER_INT_SIZE - response_header_bytes_written_,
+                      client_fd_));
+    response_header_bytes_written_ += write_result.bytes_written;
+    if (write_result.state == WriteState::kEAGAIN) {
+      return write_result.state;
+    }
+  }
+
+  if (response_bytes_written_ < response_buffer_.size()) {
     ABSL_ASSIGN_OR_RETURN(
         WriteResult write_result,
         WriteToClient(response_buffer_, response_bytes_written_,
-                      total_response_bytes - response_bytes_written_,
+                      response_buffer_.size() - response_bytes_written_,
                       client_fd_));
     response_bytes_written_ += write_result.bytes_written;
     return write_result.state;
@@ -140,8 +158,8 @@ absl::StatusOr<WriteState> ClientConnection::PerformClientWrite() {
 
   return absl::InternalError(absl::StrFormat(
       "client write not performed for unexpected reason. At time of call - "
-      "total_response_bytes: %d, response_bytes_written: %d",
-      total_response_bytes, response_bytes_written_));
+      "response size: %d, response_bytes_written: %d",
+      response_buffer_.size(), response_bytes_written_));
 }
 
 absl::StatusOr<rpc::RawMessage>

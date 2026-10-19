@@ -23,7 +23,10 @@ cc_library(
 cc_library(
     name = "consts",
     hdrs = ["consts.h"],
-    visibility = ["//src/storage:__pkg__"],
+    visibility = [
+        "//src/endpoint/tests:__pkg__",
+        "//src/storage:__pkg__",
+    ],
 )
 
 cc_library(

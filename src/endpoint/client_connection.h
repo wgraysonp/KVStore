@@ -45,10 +45,12 @@ class ClientConnection {
   std::size_t size_header_bytes_read_ = 0;
   std::size_t rpc_id_header_bytes_read_ = 0;
   std::size_t payload_bytes_read_ = 0;
+  std::size_t response_header_bytes_written_ = 0;
   std::size_t response_bytes_written_ = 0;
   std::string size_header_buffer_;
   std::string rpc_id_buffer_;
   std::string payload_buffer_;
+  std::string response_header_buffer_;
   std::string response_buffer_;
   std::shared_ptr<const rpc::IRpcRegistry> rpc_registry_;
 

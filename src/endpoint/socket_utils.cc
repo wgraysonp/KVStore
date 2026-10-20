@@ -128,15 +128,20 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
 
 absl::Status WriteErrorMessageToClient(const std::string& error_message,
                                        int client_fd) {
-  std::string error_header = ConvertUint32ToNetworkBytes(error_message.size());
+  const std::string error_header =
+      ConvertUint32ToNetworkBytes(error_message.size());
 
-  ABSL_ASSIGN_OR_RETURN(
-      WriteResult unused_header_write_result,
-      WriteToClient(error_header, 0, error_header.size(), client_fd));
+  if (auto header_write_status =
+          WriteToClient(error_header, 0, error_header.size(), client_fd);
+      !header_write_status.ok()) {
+    return header_write_status.status();
+  }
 
-  ABSL_ASSIGN_OR_RETURN(
-      WriteResult unused_write_result,
-      WriteToClient(error_message, 0, error_message.size(), client_fd));
+  if (auto write_status =
+          WriteToClient(error_message, 0, error_message.size(), client_fd);
+      !write_status.ok()) {
+    return write_status.status();
+  }
 
   return absl::OkStatus();
 }

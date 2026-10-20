@@ -18,6 +18,7 @@
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::NiceMock;
+using ::testing::Return;
 
 namespace endpoint {
 
@@ -253,8 +254,9 @@ TEST_F(
   EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
 }
 
-TEST_F(ClientConnectionTest,
-       HandleEventReturnsDisconnectErrorWhenClientClosesAfterSendingSizeHeader) {
+TEST_F(
+    ClientConnectionTest,
+    HandleEventReturnsDisconnectErrorWhenClientClosesAfterSendingSizeHeader) {
   uint32_t payload_size = htonl(10);
   char size_header[4];
   std::memcpy(&size_header, &payload_size, 4);
@@ -281,6 +283,112 @@ TEST_F(ClientConnectionTest,
 
   // send the size header and rpc_id then close the connection early
   ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
+  close(local_fd_);
+  local_fd_ = -1;
+
+  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status);
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+}
+
+TEST_F(ClientConnectionTest, ClientConnectionDisconnectsIfRPCFails) {
+  std::string payload = "Invalid Payload";
+  uint32_t payload_size = htonl(static_cast<uint32_t>(payload.size()));
+  uint32_t rpc_id = htonl(1);
+  char size_header[4];
+  char rpc_id_header[4];
+  std::memcpy(&size_header, &payload_size, 4);
+  std::memcpy(&rpc_id_header, &rpc_id, 4);
+
+  // send the size and rpc id headers and client payload
+  ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, payload.data(), payload.size(), 0), 15);
+
+  EXPECT_CALL(*mock_registry_, DispatchRequest(::testing::_))
+      .Times(1)
+      .WillOnce(Return(absl::InvalidArgumentError("Bad rpc request data")));
+
+  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
+                         << status.status().ToString();
+
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+
+  std::string expected_response = "INVALID_ARGUMENT: Bad rpc request data";
+
+  std::string response_header_buffer;
+  response_header_buffer.resize(4);
+  std::string client_buffer;
+  client_buffer.resize(expected_response.size());
+
+  // HandleEvent should have written back to client. Read the header, then read
+  ASSERT_EQ(recv(local_fd_, response_header_buffer.data(), 4, 0), 4);
+
+  uint32_t header;
+  std::memcpy(&header, response_header_buffer.data(), 4);
+  EXPECT_EQ(ntohl(header), static_cast<uint32_t>(expected_response.size()));
+
+  int payload_bytes_received =
+      recv(local_fd_, client_buffer.data(), expected_response.size(), 0);
+  EXPECT_EQ(payload_bytes_received, static_cast<int>(expected_response.size()));
+
+  EXPECT_EQ(client_buffer, expected_response);
+}
+
+TEST_F(ClientConnectionTest,
+       ClientConnectionDisconnectsOnAttemptToWriteToBrokenPipe) {
+  std::string payload = "Payload";
+  uint32_t payload_size = htonl(static_cast<uint32_t>(payload.size()));
+  uint32_t rpc_id = htonl(1);
+  char size_header[4];
+  char rpc_id_header[4];
+  std::memcpy(&size_header, &payload_size, 4);
+  std::memcpy(&rpc_id_header, &rpc_id, 4);
+
+  // send the size and rpc id headers and client payload
+  ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
+  ASSERT_EQ(send(local_fd_, payload.data(), payload.size(), 0), 7);
+
+  close(local_fd_);
+  local_fd_ = -1;
+
+
+  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
+                         << status.status().ToString();
+
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+}
+
+TEST_F(ClientConnectionTest,
+       HandlEventFailsIfConnectionIsDisconnectedSuccessfully) {
+  close(local_fd_);
+  local_fd_ = -1;
+
+  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+
+  ABSL_ASSERT_OK(status);
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
+
+  absl::StatusOr<ConnectionStatus> status2 = client_connection_->HandleEvent();
+  EXPECT_THAT(status2,
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("ClientConnection is in a disconnected state "
+                                 "and should be deleted.")));
+}
+
+TEST_F(ClientConnectionTest, HandlEventFailsIfConnectionIsDisconnectedinError) {
+  uint32_t payload_size = htonl(10);
+  char size_header[4];
+  std::memcpy(&size_header, &payload_size, 4);
+
+  // send the size header and rpc_id then close the connection early
   ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
   close(local_fd_);
   local_fd_ = -1;
@@ -289,5 +397,11 @@ TEST_F(ClientConnectionTest,
 
   ABSL_ASSERT_OK(status);
   EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+
+  // the file descriptor should be closed and invalid at this point
+  absl::StatusOr<ConnectionStatus> status2 = client_connection_->HandleEvent();
+  EXPECT_THAT(status2,
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Client file descriptor is invalid")));
 }
 }  // namespace endpoint

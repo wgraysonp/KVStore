@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"

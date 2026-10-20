@@ -59,10 +59,30 @@ cc_library(
 )
 
 cc_library(
+    name = "connection_manager",
+    srcs = ["connection_manager.cc"],
+    hdrs = ["connection_manager.h"],
+    visibility = ["//src/endpoint/tests:__pkg__"],
+    deps = [
+        "//src/endpoint:client_connection",
+        "//src/endpoint:consts",
+        "//src/endpoint:socket_utils",
+        "//src/rpc_framework",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:strings",
+    ],
+)
+
+cc_library(
     name = "endpoint",
     visibility = ["//visibility:public"],
     deps = [
         "//src/endpoint:client_connection",
+        "//src/endpoint:connection_manager",
         "//src/endpoint:consts",
         "//src/endpoint:epoll_server",
         "//src/endpoint:socket_utils",

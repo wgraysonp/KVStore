@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include <cstddef>
+#include <cstring>
 #include <memory>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -356,7 +358,6 @@ TEST_F(ClientConnectionTest,
 
   close(local_fd_);
   local_fd_ = -1;
-
 
   absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
 

@@ -78,7 +78,7 @@ TEST_F(SocketUtilsTest, ReadUint32CorrectlyReadsUint32) {
       << test_num;
 }
 
-TEST_F(SocketUtilsTest, ConvertUint32ToNetworkBytesCorrectlyConvertUint32){
+TEST_F(SocketUtilsTest, ConvertUint32ToNetworkBytesCorrectlyConvertUint32) {
   uint32_t expected_num = 75;
   std::string num_network_bytes = ConvertUint32ToNetworkBytes(expected_num);
 
@@ -294,6 +294,51 @@ TEST_F(SocketUtilsTest,
   client_buf.resize(5);
   ASSERT_EQ(recv(local_fd_, client_buf.data(), 5, 0), 5);
   EXPECT_EQ(client_buf, "Write");
+}
+
+TEST_F(SocketUtilsTest, WriteErrorMessageToClientCorrectlyWritesStringLiteral) {
+  ABSL_ASSERT_OK(WriteErrorMessageToClient("Internal Error", remote_fd_));
+
+  std::string expected_response = "Internal Error";
+
+  std::string response_header_buffer;
+  response_header_buffer.resize(4);
+  std::string client_buffer;
+  client_buffer.resize(expected_response.size());
+
+  // HandleEvent should have written back to client. Read the header, then read
+  // 13 bytes, which is the size of expected response
+  ASSERT_EQ(recv(local_fd_, response_header_buffer.data(), 4, 0), 4);
+  ASSERT_EQ(recv(local_fd_, client_buffer.data(), expected_response.size(), 0),
+            14);
+
+  uint32_t header;
+  std::memcpy(&header, response_header_buffer.data(), 4);
+  EXPECT_EQ(ntohl(header), (uint32_t)14);
+  EXPECT_EQ(client_buffer, expected_response);
+}
+
+TEST_F(SocketUtilsTest, WriteErrorMessageToClientCorrectlyWritesAbslStatusCode) {
+  absl::Status status = absl::InternalError("Horiffic error.");
+  ABSL_ASSERT_OK(WriteErrorMessageToClient(status.ToString(), remote_fd_));
+
+  std::string expected_response = "INTERNAL: Horiffic error.";
+
+  std::string response_header_buffer;
+  response_header_buffer.resize(4);
+  std::string client_buffer;
+  client_buffer.resize(expected_response.size());
+
+  // HandleEvent should have written back to client. Read the header, then read
+  // 13 bytes, which is the size of expected response
+  ASSERT_EQ(recv(local_fd_, response_header_buffer.data(), 4, 0), 4);
+  ASSERT_EQ(recv(local_fd_, client_buffer.data(), expected_response.size(), 0),
+            25);
+
+  uint32_t header;
+  std::memcpy(&header, response_header_buffer.data(), 4);
+  EXPECT_EQ(ntohl(header), (uint32_t)25);
+  EXPECT_EQ(client_buffer, expected_response);
 }
 
 }  // namespace endpoint

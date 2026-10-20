@@ -32,7 +32,9 @@ class ClientConnection {
   ClientConnection(const ClientConnection&) = delete;
   ClientConnection& operator=(ClientConnection&&) noexcept = default;
   ClientConnection(ClientConnection&&) noexcept = default;
-  ~ClientConnection() { close(client_fd_); }
+  ~ClientConnection() {
+    if (client_fd_ != -1) close(client_fd_);
+  }
 
   absl::Status MakeNonBlocking();
   absl::StatusOr<ConnectionStatus> HandleEvent();
@@ -40,7 +42,7 @@ class ClientConnection {
   ConnectionStatus GetConnectionStatus() const { return connection_status_; }
 
  private:
-  int client_fd_;
+  int client_fd_ = -1;
   ConnectionStatus connection_status_ = ConnectionStatus::CONNECTED_READ;
   std::size_t size_header_bytes_read_ = 0;
   std::size_t rpc_id_header_bytes_read_ = 0;
@@ -54,12 +56,21 @@ class ClientConnection {
   std::string response_buffer_;
   std::shared_ptr<const rpc::IRpcRegistry> rpc_registry_;
 
+  ConnectionStatus ProcessReadStage();
+  ConnectionStatus ProcessDispatchStage();
+  ConnectionStatus ProcessWriteStage();
   absl::StatusOr<ReadState> PerformClientRead();
   absl::StatusOr<WriteState> PerformClientWrite();
 
   // creates a raw message struct from the read_buffers to send to rpc routing,
   // clears the intrenal read buffers, and sets bytes_read trackers to zero.
   absl::StatusOr<rpc::RawMessage> MoveClientReadDataToRawMessage();
+
+  void HandleDisconnectOnError(const absl::Status& status = absl::OkStatus());
+
+  void HandleError(const absl::Status& status);
+  // reset the connection buffers and counters
+  void Reset();
 };
 
 }  // namespace endpoint

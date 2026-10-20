@@ -10,6 +10,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 
 namespace endpoint {
@@ -123,5 +124,20 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
   }
 
   return result;
+}
+
+absl::Status WriteErrorMessageToClient(const std::string& error_message,
+                                       int client_fd) {
+  std::string error_header = ConvertUint32ToNetworkBytes(error_message.size());
+
+  ABSL_ASSIGN_OR_RETURN(
+      WriteResult unused_header_write_result,
+      WriteToClient(error_header, 0, error_header.size(), client_fd));
+
+  ABSL_ASSIGN_OR_RETURN(
+      WriteResult unused_write_result,
+      WriteToClient(error_message, 0, error_message.size(), client_fd));
+
+  return absl::OkStatus();
 }
 }  // namespace endpoint

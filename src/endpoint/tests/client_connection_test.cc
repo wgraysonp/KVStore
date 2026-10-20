@@ -181,7 +181,8 @@ TEST_F(ClientConnectionTest,
   EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
 }
 
-TEST_F(ClientConnectionTest, HandleEventFailsIfReadFromClientReturnsError) {
+TEST_F(ClientConnectionTest,
+       HandleEventReturnsDisconnectErrorIfClientConnectionFails) {
   // send some data from the server fd to the client fd
   int bytes_sent = send(remote_fd_, "Half Data", 9, 0);
   ASSERT_EQ(bytes_sent, 9);
@@ -195,12 +196,13 @@ TEST_F(ClientConnectionTest, HandleEventFailsIfReadFromClientReturnsError) {
   // check that the test worked as intended and errno was set to ECONNRESET
   ASSERT_EQ(errno, ECONNRESET);
 
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kUnavailable,
-                               HasSubstr("Connection reset by peer")));
+  ABSL_EXPECT_OK(status);
+
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
 }
 
 TEST_F(ClientConnectionTest,
-       HandleEventReturnsInvalidArgumentErrorIfRequestedPayloadIsTooLarge) {
+       HandleEventWritesInvalidArgumentToClientIfRequestedPayloadIsTooLarge) {
   uint32_t big_payload_size =
       htonl(static_cast<uint32_t>(MAX_CLIENT_PAYLOAD_SIZE) + 1);
   uint32_t rpc_id = htonl(1);
@@ -216,8 +218,28 @@ TEST_F(ClientConnectionTest,
   ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
 
   absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+  ABSL_ASSERT_OK(status);
 
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument));
+  std::string expected_response =
+      "INVALID_ARGUMENT: Requested payload is too large";
+
+  std::string response_header_buffer;
+  response_header_buffer.resize(4);
+  std::string client_buffer;
+  client_buffer.resize(expected_response.size());
+
+  // HandleEvent should have written back to client. Read the header, then read
+  ASSERT_EQ(recv(local_fd_, response_header_buffer.data(), 4, 0), 4);
+
+  uint32_t header;
+  std::memcpy(&header, response_header_buffer.data(), 4);
+  EXPECT_EQ(ntohl(header), static_cast<uint32_t>(expected_response.size()));
+
+  int payload_bytes_received =
+      recv(local_fd_, client_buffer.data(), expected_response.size(), 0);
+  EXPECT_EQ(payload_bytes_received, static_cast<int>(expected_response.size()));
+
+  EXPECT_EQ(client_buffer, expected_response);
 }
 
 TEST_F(
@@ -232,7 +254,7 @@ TEST_F(
 }
 
 TEST_F(ClientConnectionTest,
-       HandleEventReturnsCancelledErrorWhenClientClosesAfterSendingSizeHeader) {
+       HandleEventReturnsDisconnectErrorWhenClientClosesAfterSendingSizeHeader) {
   uint32_t payload_size = htonl(10);
   char size_header[4];
   std::memcpy(&size_header, &payload_size, 4);
@@ -244,12 +266,12 @@ TEST_F(ClientConnectionTest,
 
   absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
 
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kCancelled,
-                               HasSubstr("Client connection closed mid read")));
+  ABSL_ASSERT_OK(status);
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
 }
 
 TEST_F(ClientConnectionTest,
-       HandleEventReturnsCancelledErrorWhenClientClosesAfterSendingRPCId) {
+       HandleEventReturnsDisconnectErrorWhenClientClosesAfterSendingRPCId) {
   uint32_t payload_size = htonl(10);
   uint32_t rpc_id = htonl(1);
   char size_header[4];
@@ -265,7 +287,7 @@ TEST_F(ClientConnectionTest,
 
   absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
 
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kCancelled,
-                               HasSubstr("Client connection closed mid read")));
+  ABSL_ASSERT_OK(status);
+  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
 }
 }  // namespace endpoint

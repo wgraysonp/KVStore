@@ -58,6 +58,9 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
                                           std::size_t offset,
                                           std::size_t n_bytes, int client_fd);
 
+absl::Status WriteErrorMessageToClient(const std::string& error_message,
+                                       int client_fd);
+
 }  // namespace endpoint
 
 #endif  // SRC_KVSERVICE_SOCKET_UTILS_H_

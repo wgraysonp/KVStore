@@ -2,7 +2,7 @@
 #define SRC_RPC_FRAMEWORK_DATA_H_
 
 #include <cstdint>
-#include <vector>
+#include <string>
 
 namespace rpc {
 

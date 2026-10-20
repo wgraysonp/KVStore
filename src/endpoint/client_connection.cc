@@ -69,8 +69,8 @@ ConnectionStatus ClientConnection::ProcessReadStage() {
     case ReadState::kEOF:
       return ConnectionStatus::DISCONNECTED_SUCCESS;
     default:
-      HandleDisconnectOnError(
-          absl::InternalError("State unknown in ProcessReadState"));
+      LOG(ERROR) << "State unknown in ProcessReadState. Disconnecting";
+      HandleDisconnectOnError(absl::InternalError(""));
       return ConnectionStatus::DISCONNECTED_ERROR;
   }
 }
@@ -189,7 +189,6 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
   if (expected_payload_size > MAX_CLIENT_PAYLOAD_SIZE) {
     LOG(ERROR) << "Client requested payload too large";
     return absl::InvalidArgumentError("Requested payload is too large");
-    // return absl::OutOfRangeError("Requested payload is too large");
   } else if (expected_payload_size == 0) {
     LOG(INFO) << "Client requested payload size is zero. Skipping payload read";
     return ReadState::kSUCCESS;

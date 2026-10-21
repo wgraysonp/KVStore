@@ -3,9 +3,11 @@
 
 #include <unistd.h>
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -23,7 +25,14 @@ enum class ConnectionStatus {
   DISCONNECTED_SUCCESS = 5,
 };
 
-class ClientConnection {
+class IClientConnection {
+ public:
+  virtual ~IClientConnection() = default;
+  virtual absl::Status MakeNonBlocking() = 0;
+  virtual absl::StatusOr<ConnectionStatus> HandleEvent() = 0;
+};
+
+class ClientConnection : public IClientConnection {
  public:
   explicit ClientConnection(
       int client_fd, std::shared_ptr<const rpc::IRpcRegistry> rpc_registry)
@@ -32,12 +41,12 @@ class ClientConnection {
   ClientConnection(const ClientConnection&) = delete;
   ClientConnection& operator=(ClientConnection&&) noexcept = default;
   ClientConnection(ClientConnection&&) noexcept = default;
-  ~ClientConnection() {
+  ~ClientConnection() override {
     if (client_fd_ != -1) close(client_fd_);
   }
 
-  absl::Status MakeNonBlocking();
-  absl::StatusOr<ConnectionStatus> HandleEvent();
+  absl::Status MakeNonBlocking() override;
+  absl::StatusOr<ConnectionStatus> HandleEvent() override;
 
   ConnectionStatus GetConnectionStatus() const { return connection_status_; }
 
@@ -71,6 +80,23 @@ class ClientConnection {
   void HandleError(const absl::Status& status);
   // reset the connection buffers and counters
   void Reset();
+};
+
+class IClientConnectionFactory {
+ public:
+  virtual ~IClientConnectionFactory() = default;
+  virtual std::unique_ptr<IClientConnection> CreateClientConnection(
+      int client_fd, std::shared_ptr<const rpc::IRpcRegistry> rpc_registry) = 0;
+};
+
+class ClientConnectionFactory : public IClientConnectionFactory {
+ public:
+  std::unique_ptr<IClientConnection> CreateClientConnection(
+      int client_fd,
+      std::shared_ptr<const rpc::IRpcRegistry> rpc_registry) override {
+    return std::make_unique<IClientConnection>(client_fd,
+                                               std::move(rpc_registry));
+  }
 };
 
 }  // namespace endpoint

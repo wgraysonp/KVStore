@@ -17,9 +17,13 @@ namespace endpoint {
 
 class ConnectionManager {
  public:
-  explicit ConnectionManager(int port,
-                             std::shared_ptr<rpc::IRpcRegistry> rpc_registry)
-      : rpc_registry_(std::move(rpc_registry)), port_(port) {};
+  explicit ConnectionManager(
+      int port, std::shared_ptr<rpc::IRpcRegistry> rpc_registry,
+      std::unique_ptr<IClientConnectionFactory> connection_factory)
+      : rpc_registry_(std::move(rpc_registry)),
+        connection_factory_(std::move(connection_factory)),
+        port_(port) {};
+
   ConnectionManager(const ConnectionManager&) = delete;
   ConnectionManager& operator=(const ConnectionManager&) = delete;
   ConnectionManager(ConnectionManager&&) = delete;
@@ -35,7 +39,7 @@ class ConnectionManager {
   void Stop();
 
  private:
-   // Process all active events either accepting a new client connection
+  // Process all active events either accepting a new client connection
   // or passing event to existing client connection
   void ProcessActiveEpollEvents(const std::vector<epoll_event>& events);
 
@@ -44,8 +48,10 @@ class ConnectionManager {
 
   absl::Status HandleExistingClientEvent(const epoll_event& ev);
 
-  absl::flat_hash_map<int, ClientConnection> active_connections_;
+  absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>
+      active_connections_;
   std::shared_ptr<const rpc::IRpcRegistry> rpc_registry_;
+  std::unique_ptr<IClientConnectionFactory> connection_factory_;
   std::atomic<bool> is_running_;
   int port_;
   int listen_fd_ = -1;

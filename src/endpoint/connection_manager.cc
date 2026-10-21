@@ -139,7 +139,10 @@ absl::Status ConnectionManager::AcceptNewConnection() {
                                client_fd));
   }
 
-  active_connections_.emplace(client_fd, client_fd, rpc_registry_);
+  auto connection =
+      connection_factory_->CreateClientConnection(client_fd, rpc_registry_);
+
+  active_connections_.emplace(client_fd, std::move(connection));
 
   std::move(close_fd).Cancel();
   return absl::OkStatus();
@@ -149,21 +152,23 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
     const epoll_event& ev) {
   const int client_fd = ev.data.fd;
 
-  auto it = active_connections_.find(client_fd);
-  if (it == active_connections_.end()) {
+  absl::StatusOr<ConnectionStatus> connection_status;
+  if (auto it = active_connections_.find(client_fd);
+      it == active_connections_.end()) {
     LOG(WARNING) << "Client fd " << client_fd
                  << " not found in active connections map";
     return absl::OkStatus();
+  } else {
+    const std::unique_ptr<IClientConnection>& connection = it->second;
+    connection_status = connection->HandleEvent();
   }
-  ClientConnection& connection = it->second;
-
-  absl::StatusOr<ConnectionStatus> connection_status = connection.HandleEvent();
 
   if (!connection_status.ok()) {
     LOG(ERROR) << "Handle Event failed with error message: "
                << connection_status.status().ToString()
                << " Closing connection for client fd " << client_fd;
     active_connections_.erase(client_fd);
+    return absl::OkStatus();
   }
 
   switch (connection_status.value()) {

@@ -18,7 +18,15 @@
 
 namespace endpoint {
 
-ConnectionManager::~ConnectionManager() { Stop(); }
+ConnectionManager::~ConnectionManager() {
+  Stop();
+  if (listen_fd_ >= 0) {
+    close(listen_fd_);
+  }
+  if (epoll_fd_ >= 0) {
+    close(epoll_fd_);
+  }
+}
 
 absl::Status ConnectionManager::BindAndListen() {
   listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
@@ -65,7 +73,7 @@ absl::Status ConnectionManager::BindAndListen() {
   return absl::OkStatus();
 }
 
-absl::Status ConnectionManager::RunLoop() {
+absl::Status ConnectionManager::LoopForever() {
   auto cleanup = absl::MakeCleanup([this]() {
     if (listen_fd_ >= 0) {
       close(listen_fd_);
@@ -77,22 +85,27 @@ absl::Status ConnectionManager::RunLoop() {
     }
   });
 
-  std::vector<epoll_event> events;
-  events.reserve(max_events_);
-
   while (is_running_) {
-    events.resize(max_events_);
-    // set timeout to 100 ms to periodically check the is_running_ flag
-    int num_fds = epoll_wait(epoll_fd_, events.data(), max_events_, 100);
-    if (num_fds < 0) {
-      // if the wait loop is interupted by an OS signal its not fatal
-      if (errno == EINTR) continue;
-      return absl::ErrnoToStatus(errno, "Epoll failed");
-    }
-    events.resize(num_fds);
-    ProcessActiveEpollEvents(events);
+    ABSL_RETURN_IF_ERROR(LoopOnce(100));
   }
   return absl::OkStatus();
+}
+
+absl::Status ConnectionManager::LoopOnce(int time_out) {
+    events_.resize(max_events_);
+    // set timeout to 100 ms to periodically check the is_running_ flag
+    int num_fds = epoll_wait(epoll_fd_, events_.data(), max_events_, time_out);
+    if (num_fds < 0) {
+      // if the wait loop is interupted by an OS signal its not fatal
+      if (errno == EINTR) {
+        return absl::OkStatus();
+      }
+      return absl::ErrnoToStatus(errno, "Epoll failed");
+    }
+    events_.resize(num_fds);
+    ProcessActiveEpollEvents(events_);
+
+    return absl::OkStatus();
 }
 
 void ConnectionManager::Stop() { is_running_ = false; }
@@ -100,8 +113,7 @@ void ConnectionManager::Stop() { is_running_ = false; }
 void ConnectionManager::ProcessActiveEpollEvents(
     const std::vector<epoll_event>& events) {
   for (const auto& event : events) {
-    int active_fd = event.data.fd;
-    if (active_fd == listen_fd_) {
+    if (event.data.fd == listen_fd_) {
       if (absl::Status status = AcceptNewConnection(); !status.ok()) {
         LOG(ERROR) << "Failed to accept new client connetion. Error message: "
                    << status.message();

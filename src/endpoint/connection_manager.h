@@ -4,6 +4,7 @@
 #include <sys/epoll.h>
 
 #include <atomic>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -22,7 +23,9 @@ class ConnectionManager {
       std::unique_ptr<IClientConnectionFactory> connection_factory)
       : rpc_registry_(std::move(rpc_registry)),
         connection_factory_(std::move(connection_factory)),
-        port_(port) {};
+        port_(port) {
+          events_.reserve(max_events_);
+        };
 
   ConnectionManager(const ConnectionManager&) = delete;
   ConnectionManager& operator=(const ConnectionManager&) = delete;
@@ -34,9 +37,16 @@ class ConnectionManager {
   absl::Status BindAndListen();
 
   // forever event loop
-  absl::Status RunLoop();
+  absl::Status LoopForever();
+
+  absl::Status LoopOnce(int time_out);
 
   void Stop();
+
+  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  GetActiveConnections() const {
+    return active_connections_;
+  }
 
  private:
   // Process all active events either accepting a new client connection
@@ -48,6 +58,7 @@ class ConnectionManager {
 
   absl::Status HandleExistingClientEvent(const epoll_event& ev);
 
+  std::vector<epoll_event> events_;
   absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>
       active_connections_;
   std::shared_ptr<const rpc::IRpcRegistry> rpc_registry_;

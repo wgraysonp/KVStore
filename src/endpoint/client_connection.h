@@ -94,7 +94,7 @@ class ClientConnectionFactory : public IClientConnectionFactory {
   std::unique_ptr<IClientConnection> CreateClientConnection(
       int client_fd,
       std::shared_ptr<const rpc::IRpcRegistry> rpc_registry) override {
-    return std::make_unique<IClientConnection>(client_fd,
+    return std::make_unique<ClientConnection>(client_fd,
                                                std::move(rpc_registry));
   }
 };

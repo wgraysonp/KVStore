@@ -318,7 +318,8 @@ TEST_F(SocketUtilsTest, WriteErrorMessageToClientCorrectlyWritesStringLiteral) {
   EXPECT_EQ(client_buffer, expected_response);
 }
 
-TEST_F(SocketUtilsTest, WriteErrorMessageToClientCorrectlyWritesAbslStatusCode) {
+TEST_F(SocketUtilsTest,
+       WriteErrorMessageToClientCorrectlyWritesAbslStatusCode) {
   absl::Status status = absl::InternalError("Horiffic error.");
   ABSL_ASSERT_OK(WriteErrorMessageToClient(status.ToString(), remote_fd_));
 

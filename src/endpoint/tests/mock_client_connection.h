@@ -3,6 +3,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include <memory>
 
@@ -15,7 +16,7 @@ namespace endpoint {
 class MockClientConnection : public IClientConnection {
  public:
   MockClientConnection() {
-    ON_CALL(*this, MakeNonBlocking(::testing::_))
+    ON_CALL(*this, MakeNonBlocking())
         .WillByDefault(::testing::Return(absl::OkStatus()));
   }
 
@@ -25,7 +26,13 @@ class MockClientConnection : public IClientConnection {
 
 class MockClientConnectionFactory : public IClientConnectionFactory {
  public:
-  MockClientConnectionFactory() = default;
+  MockClientConnectionFactory() {
+    ON_CALL(*this, CreateClientConnection(::testing::_, ::testing::_))
+        .WillByDefault([]() {
+          auto mock_connection = std::make_unique<MockClientConnection>();
+          return mock_connection;
+        });
+  }
 
   MOCK_METHOD((std::unique_ptr<IClientConnection>), CreateClientConnection,
               (int client_fd,

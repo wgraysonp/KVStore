@@ -92,20 +92,20 @@ absl::Status ConnectionManager::LoopForever() {
 }
 
 absl::Status ConnectionManager::LoopOnce(int time_out) {
-    events_.resize(max_events_);
-    // set timeout to 100 ms to periodically check the is_running_ flag
-    int num_fds = epoll_wait(epoll_fd_, events_.data(), max_events_, time_out);
-    if (num_fds < 0) {
-      // if the wait loop is interupted by an OS signal its not fatal
-      if (errno == EINTR) {
-        return absl::OkStatus();
-      }
-      return absl::ErrnoToStatus(errno, "Epoll failed");
+  events_.resize(max_events_);
+  // set timeout to 100 ms to periodically check the is_running_ flag
+  int num_fds = epoll_wait(epoll_fd_, events_.data(), max_events_, time_out);
+  if (num_fds < 0) {
+    // if the wait loop is interupted by an OS signal its not fatal
+    if (errno == EINTR) {
+      return absl::OkStatus();
     }
-    events_.resize(num_fds);
-    ProcessActiveEpollEvents(events_);
+    return absl::ErrnoToStatus(errno, "Epoll failed");
+  }
+  events_.resize(num_fds);
+  ProcessActiveEpollEvents(events_);
 
-    return absl::OkStatus();
+  return absl::OkStatus();
 }
 
 void ConnectionManager::Stop() { is_running_ = false; }
@@ -139,8 +139,6 @@ absl::Status ConnectionManager::AcceptNewConnection() {
 
   auto close_fd = absl::MakeCleanup([client_fd]() { close(client_fd); });
 
-  ABSL_RETURN_IF_ERROR(SetNonBlocking(client_fd));
-
   epoll_event client_ev{};
   client_ev.events = EPOLLIN | EPOLLET;
   client_ev.data.fd = client_fd;
@@ -153,6 +151,8 @@ absl::Status ConnectionManager::AcceptNewConnection() {
 
   auto connection =
       connection_factory_->CreateClientConnection(client_fd, rpc_registry_);
+
+  ABSL_RETURN_IF_ERROR(connection->MakeNonBlocking());
 
   active_connections_.emplace(client_fd, std::move(connection));
 
@@ -198,7 +198,7 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
     case ConnectionStatus::CONNECTED_DISPATCH:
     case ConnectionStatus::CONNECTED_WRITE:
       LOG(INFO) << "Event for client " << client_fd
-                << "handled successfully. Returning to epoll loop.";
+                << " handled successfully. Returning to epoll loop.";
       break;
     default:
       active_connections_.erase(client_fd);
@@ -209,5 +209,5 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
   }
 
   return absl::OkStatus();
-
+}
 }  // namespace endpoint

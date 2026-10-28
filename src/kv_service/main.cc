@@ -1,27 +1,48 @@
-#include <csignal>
-#include <functional>
-#include <iostream>
 #include <string>
+#include <memory>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
-#include "absl/strings/str_format.h"
+#include "src/endpoint/client_connection.h"
+#include "src/endpoint/connection_manager.h"
 #include "src/endpoint/consts.h"
 #include "src/endpoint/epoll_server.h"
+#include "src/kv_service/handlers/kv_get_handler.h"
+#include "src/rpc_framework/rpc_interface.h"
+#include "src/rpc_framework/rpc_registry.h"
+#include "src/storage/key_value_store.h"
+#include "src/storage/write_ahead.h"
 
-using namespace endpoint;
+static const std::string log_file_path = "/tmp/kv_service_wal.log";
+
+absl::StatusOr<std::unique_ptr<endpoint::ConnectionManager>> InitService() {
+  ABSL_ASSIGN_OR_RETURN(std::unique_ptr<kvstore::WriteAheadLog> write_ahead_log,
+                        kvstore::WriteAheadLog::CreateLog(log_file_path));
+  ABSL_ASSIGN_OR_RETURN(
+      std::shared_ptr<kvstore::KVStore> kv_store,
+      kvstore::KVStore::CreateKVStore(std::move(write_ahead_log)));
+
+  auto rpc_registry = std::make_shared<rpc::RpcRegistry>();
+  rpc_registry->RegisterRpc(
+      0, std::make_unique<kvstore::KVGetHandlerFactory>(kv_store));
+
+  auto connection_factory =
+      std::make_unique<endpoint::ClientConnectionFactory>();
+
+  auto connection_manager = std::make_unique<endpoint::ConnectionManager>(
+      endpoint::PORT, std::move(rpc_registry), std::move(connection_factory));
+  
+  return connection_manager;
+}
 
 absl::Status StartAndRunServer() {
-  std::function<std::string(const std::string&)> greeting =
-      [](const std::string& name) -> std::string {
-    return absl::StrFormat("Hello %s", name);
-  };
+  
+  ABSL_ASSIGN_OR_RETURN(auto connection_manager, InitService());
 
-  EpollServer server(PORT, greeting, false);
+  ABSL_RETURN_IF_ERROR(connection_manager->BindAndListen());
 
-  ABSL_RETURN_IF_ERROR(server.Start());
-  ABSL_RETURN_IF_ERROR(server.RunLoop());
+  ABSL_RETURN_IF_ERROR(connection_manager->LoopForever());
 
   return absl::OkStatus();
 }

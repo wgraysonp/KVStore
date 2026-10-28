@@ -32,3 +32,12 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "storage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "key_value_store",
+        "write_ahead",
+    ],
+)

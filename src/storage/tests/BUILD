@@ -38,6 +38,7 @@ cc_library(
         "//src/storage:write_ahead",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )

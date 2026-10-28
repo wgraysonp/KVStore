@@ -99,8 +99,8 @@ absl::StatusOr<std::unique_ptr<WriteAheadLog>> WriteAheadLog::CreateLog(
       new WriteAheadLog(log_fd, std::move(log_file_path)));
 }
 
-absl::Status WriteAheadLog::LogWriteRequest(const std::string& key,
-                                            const std::string& value) {
+absl::Status WriteAheadLog::LogWriteRequest(absl::string_view key,
+                                            absl::string_view value) {
   if (log_fd_ < 0) {
     return absl::InternalError("Log file descriptor is invalid");
   }
@@ -183,8 +183,8 @@ absl::Status WriteAheadLog::Close() {
   return status;
 }
 
-std::string WriteAheadLog::ConvertRequestToString(const std::string& key,
-                                                  const std::string& value) {
+std::string WriteAheadLog::ConvertRequestToString(absl::string_view key,
+                                                  absl::string_view value) {
   std::string log = absl::StrCat(key, ":", value);
   log += '\n';
   return log;

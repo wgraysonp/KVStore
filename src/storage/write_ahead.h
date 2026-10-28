@@ -20,8 +20,8 @@ class IWriteAheadLog {
   IWriteAheadLog& operator=(IWriteAheadLog&&) noexcept = default;
   virtual ~IWriteAheadLog() = default;
 
-  virtual absl::Status LogWriteRequest(const std::string& key,
-                                       const std::string& value) = 0;
+  virtual absl::Status LogWriteRequest(absl::string_view key,
+                                       absl::string_view value) = 0;
   virtual absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
   RecoverKVStore() = 0;
 };
@@ -32,16 +32,16 @@ class WriteAheadLog : public IWriteAheadLog {
       std::string log_file_path);
   ~WriteAheadLog() override;
 
-  absl::Status LogWriteRequest(const std::string& key,
-                               const std::string& value) override;
+  absl::Status LogWriteRequest(absl::string_view key,
+                               absl::string_view value) override;
   absl::StatusOr<absl::flat_hash_map<std::string, std::string>> RecoverKVStore()
       override;
   absl::Status Close();
 
  private:
   explicit WriteAheadLog(int log_fd_, std::string log_file_path);
-  std::string ConvertRequestToString(const std::string& key,
-                                     const std::string& value);
+  std::string ConvertRequestToString(absl::string_view key,
+                                     absl::string_view value);
 
   int log_fd_;
   std::string log_file_path_;

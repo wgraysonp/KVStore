@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "src/storage/write_ahead.h"
 
 namespace kvstore {
@@ -18,7 +19,7 @@ class MockWriteAheadLog : public IWriteAheadLog {
   ~MockWriteAheadLog() override = default;
 
   MOCK_METHOD((absl::Status), LogWriteRequest,
-              (const std::string& key, const std::string& value), (override));
+              (absl::string_view key, absl::string_view value), (override));
   MOCK_METHOD((absl::StatusOr<absl::flat_hash_map<std::string, std::string>>),
               RecoverKVStore, (), (override));
 };

@@ -10,6 +10,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "src/storage/write_ahead.h"
 
 namespace kvstore {
@@ -27,7 +28,7 @@ KVStore::KVStore(absl::flat_hash_map<std::string, std::string> store,
                  std::unique_ptr<IWriteAheadLog> log)
     : store_(std::move(store)), write_ahead_log_(std::move(log)) {};
 
-absl::StatusOr<std::string> KVStore::Get(const std::string& key) {
+absl::StatusOr<std::string> KVStore::Get(absl::string_view key) {
   std::shared_lock<std::shared_mutex> log(kv_mutex_);
 
   if (auto it = store_.find(key); it != store_.end()) {
@@ -36,7 +37,7 @@ absl::StatusOr<std::string> KVStore::Get(const std::string& key) {
   return absl::NotFoundError(absl::StrFormat("Key %s not found", key));
 }
 
-absl::Status KVStore::Put(const std::string& key, const std::string& value) {
+absl::Status KVStore::Put(absl::string_view key, absl::string_view value) {
   std::unique_lock<std::shared_mutex> lock(kv_mutex_);
 
   if (absl::Status status = write_ahead_log_->LogWriteRequest(key, value);

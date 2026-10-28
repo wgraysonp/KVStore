@@ -19,8 +19,10 @@ def send_payload(client_socket: socket.socket) -> None:
     print(f"Sending: {payload}")
     payload_bytes = payload.encode('utf-8')
     header = struct.pack('!I', len(payload_bytes))
+    rpc_id = struct.pack('!I', 0)
     try:
         client_socket.sendall(header)
+        client_socket.sendall(rpc_id)
         client_socket.sendall(payload_bytes)
     except Exception as e:
         raise

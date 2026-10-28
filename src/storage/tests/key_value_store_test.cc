@@ -27,7 +27,7 @@ namespace kvstore {
 class KeyValueStoreTests : public ::testing::Test {
  protected:
   NiceMock<MockWriteAheadLog>* mock_log_;
-  std::unique_ptr<KVStore> store_;
+  std::shared_ptr<KVStore> store_;
 
   void CreateTestKVStore(const InternalKVMap& initial_kv_map) {
     auto mock_log_unique_ptr = std::make_unique<NiceMock<MockWriteAheadLog>>();
@@ -35,7 +35,7 @@ class KeyValueStoreTests : public ::testing::Test {
 
     ON_CALL(*mock_log_, RecoverKVStore()).WillByDefault(Return(initial_kv_map));
 
-    absl::StatusOr<std::unique_ptr<KVStore>> create_store_status =
+    absl::StatusOr<std::shared_ptr<KVStore>> create_store_status =
         KVStore::CreateKVStore(std::move(mock_log_unique_ptr));
 
     ABSL_ASSERT_OK(create_store_status);
@@ -55,7 +55,7 @@ TEST_F(KeyValueStoreTests, KVStoreCreationFailsIfMapRecoveryFails) {
       .Times(1)
       .WillOnce(Return(recovery_failure_status));
 
-  absl::StatusOr<std::unique_ptr<KVStore>> create_store_status =
+  absl::StatusOr<std::shared_ptr<KVStore>> create_store_status =
       KVStore::CreateKVStore(std::move(mock_log_unique_ptr));
 
   EXPECT_THAT(create_store_status,

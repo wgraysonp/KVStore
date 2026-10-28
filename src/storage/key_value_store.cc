@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
@@ -13,15 +14,14 @@
 
 namespace kvstore {
 
-absl::StatusOr<std::unique_ptr<KVStore>> KVStore::CreateKVStore(
+absl::StatusOr<std::shared_ptr<KVStore>> KVStore::CreateKVStore(
     std::unique_ptr<IWriteAheadLog> log) {
   ABSL_ASSIGN_OR_RETURN((absl::flat_hash_map<std::string, std::string> store),
                         log->RecoverKVStore());
 
-  return std::unique_ptr<KVStore>(
+  return std::shared_ptr<KVStore>(
       new KVStore(std::move(store), std::move(log)));
 }
-
 
 KVStore::KVStore(absl::flat_hash_map<std::string, std::string> store,
                  std::unique_ptr<IWriteAheadLog> log)
@@ -32,7 +32,7 @@ absl::StatusOr<std::string> KVStore::Get(const std::string& key) {
 
   if (auto it = store_.find(key); it != store_.end()) {
     return it->second;
-  } 
+  }
   return absl::NotFoundError(absl::StrFormat("Key %s not found", key));
 }
 
@@ -44,15 +44,12 @@ absl::Status KVStore::Put(const std::string& key, const std::string& value) {
     return absl::InternalError("Failed to log write request");
   }
 
-  auto [unused_it, inserted] =
-      store_.insert_or_assign(key, value);
+  auto [unused_it, inserted] = store_.insert_or_assign(key, value);
 
   if (inserted) {
-    LOG(INFO) << "Adding new key " << key << " with value "
-              << value;
+    LOG(INFO) << "Adding new key " << key << " with value " << value;
   } else {
-    LOG(INFO) << "Value at key " << key << " updated to "
-              << value;
+    LOG(INFO) << "Value at key " << key << " updated to " << value;
   }
 
   return absl::OkStatus();

@@ -14,7 +14,7 @@ namespace kvstore {
 
 class KVStore {
  public:
-  static absl::StatusOr<std::unique_ptr<KVStore>> CreateKVStore(
+  static absl::StatusOr<std::shared_ptr<KVStore>> CreateKVStore(
       std::unique_ptr<IWriteAheadLog> log);
   KVStore(const KVStore&) = delete;
   KVStore& operator=(const KVStore&) = delete;

@@ -3,6 +3,7 @@
 
 #include <concepts>
 #include <memory>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -14,7 +15,7 @@ namespace rpc {
 class Request {
  public:
   virtual ~Request() = default;
-  virtual absl::Status DeSerialize(const RawMessage& raw_request) = 0;
+  virtual absl::Status DeSerialize(RawMessage raw_request) = 0;
 };
 
 class Response {
@@ -43,7 +44,7 @@ class Handler : public IHandler {
   Handler(Handler&&) = delete;
 
   absl::StatusOr<std::string> HandleRequest(RawMessage raw_request) override {
-    ABSL_RETURN_IF_ERROR(request_.DeSerialize(raw_request));
+    ABSL_RETURN_IF_ERROR(request_.DeSerialize(std::move(raw_request)));
     ABSL_RETURN_IF_ERROR(RunSync());
     ABSL_ASSIGN_OR_RETURN(std::string response_bytes, response_.Serialize());
     return response_bytes;

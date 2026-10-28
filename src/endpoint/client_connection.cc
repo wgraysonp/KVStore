@@ -324,6 +324,7 @@ void ClientConnection::HandleError(const absl::Status& status) {
       return;
     case absl::StatusCode::kInvalidArgument:
     case absl::StatusCode::kOutOfRange:
+    case absl::StatusCode::kNotFound:
       if (absl::Status error_write_status =
               WriteErrorMessageToClient(status.ToString(), client_fd_);
           !error_write_status.ok()) {
@@ -332,6 +333,11 @@ void ClientConnection::HandleError(const absl::Status& status) {
       }
       break;
     default:
+      LOG(ERROR) << "Unaccounted for status code encountered while parsing "
+                    "error for client "
+                 << client_fd_
+                 << ". Notifiying client of internal error. Error status: "
+                 << status.ToString();
       if (absl::Status error_write_status =
               WriteErrorMessageToClient("Internal Error", client_fd_);
           !error_write_status.ok()) {

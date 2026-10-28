@@ -9,6 +9,7 @@
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 namespace endpoint {
 
@@ -37,7 +38,7 @@ struct WriteResult {
 absl::Status SetNonBlocking(int fd);
 
 // Convert 4 bytes from big-endian network byte order to host byte order
-absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer);
+absl::StatusOr<uint32_t> ReadUint32(absl::string_view buffer);
 
 // Convert uint32_t to network byte order and return the bytes in a std::string
 std::string ConvertUint32ToNetworkBytes(uint32_t num);
@@ -54,11 +55,11 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
 // write at moust n_bytes to client_fd from buffer starting at position
 // buffer.data() + offset returns the total number of bytes written or an error
 // code. Returns WriteResult struct
-absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
+absl::StatusOr<WriteResult> WriteToClient(absl::string_view buffer,
                                           std::size_t offset,
                                           std::size_t n_bytes, int client_fd);
 
-absl::Status WriteErrorMessageToClient(const std::string& error_message,
+absl::Status WriteErrorMessageToClient(absl::string_view error_message,
                                        int client_fd);
 
 }  // namespace endpoint

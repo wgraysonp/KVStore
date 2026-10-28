@@ -12,6 +12,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 namespace endpoint {
 
@@ -29,7 +30,7 @@ absl::Status SetNonBlocking(int fd) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<uint32_t> ReadUint32(const std::string& buffer) {
+absl::StatusOr<uint32_t> ReadUint32(absl::string_view buffer) {
   if (buffer.size() != 4) {
     return absl::InvalidArgumentError("Buffer must be exactly four bytes.");
   }
@@ -88,7 +89,7 @@ absl::StatusOr<ReadResult> ReadFromClient(std::string& mutable_buffer,
   return result;
 }
 
-absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
+absl::StatusOr<WriteResult> WriteToClient(absl::string_view buffer,
                                           const std::size_t offset,
                                           const std::size_t n_bytes,
                                           const int client_fd) {
@@ -126,7 +127,7 @@ absl::StatusOr<WriteResult> WriteToClient(const std::string& buffer,
   return result;
 }
 
-absl::Status WriteErrorMessageToClient(const std::string& error_message,
+absl::Status WriteErrorMessageToClient(absl::string_view error_message,
                                        int client_fd) {
   const std::string error_header =
       ConvertUint32ToNetworkBytes(error_message.size());

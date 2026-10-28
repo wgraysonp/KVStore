@@ -5,7 +5,6 @@ cc_test(
     size = "small",
     srcs = ["write_ahead_test.cc"],
     deps = [
-        "//src/storage:types",
         "//src/storage:write_ahead",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
@@ -21,11 +20,11 @@ cc_test(
     size = "small",
     srcs = ["key_value_store_test.cc"],
     deps = [
-        "//src/storage:types",
         "//src/storage:key_value_store",
         "//src/storage/tests:mock_write_ahead_log",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
@@ -36,7 +35,6 @@ cc_library(
     name = "mock_write_ahead_log",
     hdrs = ["mock_write_ahead_log.h"],
     deps = [
-        "//src/storage:types",
         "//src/storage:write_ahead",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",

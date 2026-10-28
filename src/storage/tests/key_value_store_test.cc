@@ -5,18 +5,20 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "src/storage/tests/mock_write_ahead_log.h"
 
 using ::absl_testing::StatusIs;
 using ::testing::ContainerEq;
 using ::testing::HasSubstr;
-using ::testing::Return;
 using ::testing::NiceMock;
+using ::testing::Return;
 
 using InternalKVMap = absl::flat_hash_map<std::string, std::string>;
 
@@ -78,23 +80,13 @@ TEST_F(KeyValueStoreTests, KVStoreCorrectlyAddsSingleKeyValuePair) {
 
   EXPECT_THAT(internal_map, ContainerEq(InternalKVMap{}));
 
-  Request req{
-      .request_type = RequestType::PUT,
-      .key = "key_1",
-      .value = "value_1",
-  };
-
-  Response resp = store_->ProcessRequest(req);
-
-  EXPECT_EQ(resp.response_status, ResponseStatus::Ok);
-  EXPECT_EQ(resp.value, std::nullopt);
+  ABSL_EXPECT_OK(store_->Put("key_1", "value_1"));
 
   EXPECT_THAT(store_->GetKVMap(),
               ContainerEq(InternalKVMap{{"key_1", "value_1"}}));
 }
 
-TEST_F(KeyValueStoreTests,
-       KVStoreReturnsResponseWithErrorMessageIfLogWriteFails) {
+TEST_F(KeyValueStoreTests, KVStoreReturnshErrorMessageIfLogWriteFails) {
   ASSERT_NO_FATAL_FAILURE(CreateTestKVStore(InternalKVMap{}))
       << "KV Store creation failed";
 
@@ -102,19 +94,13 @@ TEST_F(KeyValueStoreTests,
 
   EXPECT_THAT(internal_map, ContainerEq(InternalKVMap{}));
 
-  Request req{
-      .request_type = RequestType::PUT,
-      .key = "key_1",
-      .value = "value_1",
-  };
-
-  EXPECT_CALL(*mock_log_, LogRequest(req))
+  EXPECT_CALL(*mock_log_, LogWriteRequest("key_1", "value_1"))
       .Times(1)
       .WillOnce(Return(absl::InternalError("Some horrific error")));
 
-  Response resp = store_->ProcessRequest(req);
+  absl::Status status = store_->Put("key_1", "value_1");
 
-  EXPECT_EQ(resp, Response{.response_status = ResponseStatus::InternalError});
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInternal));
 }
 
 TEST_F(KeyValueStoreTests,
@@ -126,15 +112,9 @@ TEST_F(KeyValueStoreTests,
 
   EXPECT_THAT(internal_map, ContainerEq(InternalKVMap{}));
 
-  Request req{
-      .request_type = RequestType::GET,
-      .key = "key_1",
-  };
+  absl::StatusOr<std::string> status = store_->Get("key_1");
 
-  Response resp = store_->ProcessRequest(req);
-
-  EXPECT_EQ(resp,
-            Response{.response_status = ResponseStatus::KeyNotFoundError});
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(KeyValueStoreTests,
@@ -147,18 +127,10 @@ TEST_F(KeyValueStoreTests,
 
   EXPECT_THAT(internal_map, ContainerEq(InternalKVMap{{"key_1", "value_1"}}));
 
-  Request req{
-      .request_type = RequestType::GET,
-      .key = "key_1",
-  };
+  absl::StatusOr<std::string> status = store_->Get("key_1");
+  ABSL_ASSERT_OK(status);
 
-  Response resp = store_->ProcessRequest(req);
-  Response expected_resp{
-      .response_status = ResponseStatus::Ok,
-      .value = "value_1",
-  };
-
-  EXPECT_EQ(resp, expected_resp);
+  EXPECT_EQ(status.value(), "value_1");
 }
 
 // test multiple threads reading and writing to the kv store
@@ -169,10 +141,7 @@ TEST_F(KeyValueStoreTests, ConcurrencyStressTest) {
 
   std::atomic<bool> hold_readers(true);
 
-  Request reader_request{
-      .request_type = RequestType::GET,
-      .key = "key",
-  };
+  std::string reader_key = "key";
 
   std::vector<std::thread> threads;
 
@@ -180,20 +149,18 @@ TEST_F(KeyValueStoreTests, ConcurrencyStressTest) {
   for (int i = 0; i < 5; i++) {
     threads.emplace_back([&, i]() {
       while (hold_readers.load()) {
-        Response resp = store_->ProcessRequest(reader_request);
+        absl::StatusOr<std::string> value_status = store_->Get(reader_key);
       }
     });
   }
 
   // add writer threads
   for (int i = 0; i < 3; i++) {
-    Request req{
-        .request_type = RequestType::PUT,
-        .key = "key_" + std::to_string(i),
-        .value = "value_" + std::to_string(i),
-    };
-    threads.emplace_back(
-        [&, i, req]() { Response resp = store_->ProcessRequest(req); });
+    std::string key = "key_" + std::to_string(i);
+    std::string value = "value_" + std::to_string(i);
+    threads.emplace_back([&, i, key, value]() {
+      absl::Status status = store_->Put(key, value);
+    });
   }
 
   hold_readers = false;

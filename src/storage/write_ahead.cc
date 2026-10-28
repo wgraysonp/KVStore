@@ -20,21 +20,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "src/storage/types.h"
 
 namespace kvstore {
 namespace {
-absl::Status ValidateWriteRequest(const Request& request) {
-  if (request.request_type == RequestType::GET) {
-    return absl::InvalidArgumentError(
-        "Request type is GET. Only PUT requests are logged");
-  }
-
-  if (!request.value.has_value()) {
-    return absl::InvalidArgumentError("Request value is null.");
-  }
-  return absl::OkStatus();
-}
 
 // check if the last line in log is corrupted and remove it if so
 absl::StatusOr<size_t> ClearCorruptedEntriesFromLog(
@@ -111,14 +99,13 @@ absl::StatusOr<std::unique_ptr<WriteAheadLog>> WriteAheadLog::CreateLog(
       new WriteAheadLog(log_fd, std::move(log_file_path)));
 }
 
-absl::Status WriteAheadLog::LogRequest(const Request& request) {
+absl::Status WriteAheadLog::LogWriteRequest(const std::string& key,
+                                            const std::string& value) {
   if (log_fd_ < 0) {
     return absl::InternalError("Log file descriptor is invalid");
   }
 
-  ABSL_RETURN_IF_ERROR(ValidateWriteRequest(request));
-
-  const std::string request_log = ConvertRequestToString(request);
+  const std::string request_log = ConvertRequestToString(key, value);
   const size_t bytes_written =
       write(log_fd_, request_log.c_str(), request_log.size());
   if (bytes_written < request_log.size()) {
@@ -196,8 +183,9 @@ absl::Status WriteAheadLog::Close() {
   return status;
 }
 
-std::string WriteAheadLog::ConvertRequestToString(const Request& request) {
-  std::string log = absl::StrCat(request.key, ":", *request.value);
+std::string WriteAheadLog::ConvertRequestToString(const std::string& key,
+                                                  const std::string& value) {
+  std::string log = absl::StrCat(key, ":", value);
   log += '\n';
   return log;
 }

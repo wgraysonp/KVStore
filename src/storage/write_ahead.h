@@ -2,13 +2,12 @@
 #define KVSTORE_SRC_STORAGE_WRITE_AHEAD_H_
 
 #include <cstdio>
-#include <fstream>
 #include <memory>
+#include <string>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "src/storage/types.h"
 
 namespace kvstore {
 
@@ -21,7 +20,8 @@ class IWriteAheadLog {
   IWriteAheadLog& operator=(IWriteAheadLog&&) noexcept = default;
   virtual ~IWriteAheadLog() = default;
 
-  virtual absl::Status LogRequest(const Request& request) = 0;
+  virtual absl::Status LogWriteRequest(const std::string& key,
+                                       const std::string& value) = 0;
   virtual absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
   RecoverKVStore() = 0;
 };
@@ -32,14 +32,16 @@ class WriteAheadLog : public IWriteAheadLog {
       std::string log_file_path);
   ~WriteAheadLog() override;
 
-  absl::Status LogRequest(const Request& request) override;
+  absl::Status LogWriteRequest(const std::string& key,
+                               const std::string& value) override;
   absl::StatusOr<absl::flat_hash_map<std::string, std::string>> RecoverKVStore()
       override;
   absl::Status Close();
 
  private:
   explicit WriteAheadLog(int log_fd_, std::string log_file_path);
-  std::string ConvertRequestToString(const Request& request);
+  std::string ConvertRequestToString(const std::string& key,
+                                     const std::string& value);
 
   int log_fd_;
   std::string log_file_path_;

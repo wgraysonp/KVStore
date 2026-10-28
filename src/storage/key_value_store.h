@@ -8,7 +8,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "src/storage/types.h"
 #include "src/storage/write_ahead.h"
 
 namespace kvstore {
@@ -22,7 +21,8 @@ class KVStore {
   KVStore(KVStore&&) = default;
   KVStore& operator=(KVStore&&) = default;
 
-  Response ProcessRequest(const Request&);
+  absl::Status Put(const std::string& key, const std::string& value);
+  absl::StatusOr<std::string> Get(const std::string& key);
   const absl::flat_hash_map<std::string, std::string>& GetKVMap() const {
     return store_;
   }
@@ -31,9 +31,6 @@ class KVStore {
  private:
   KVStore(absl::flat_hash_map<std::string, std::string> store,
           std::unique_ptr<IWriteAheadLog> log);
-
-  Response Put(const Request&);
-  Response Get(const Request&);
 
   std::shared_mutex kv_mutex_;
   absl::flat_hash_map<std::string, std::string> store_;

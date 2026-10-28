@@ -13,7 +13,6 @@ cc_library(
     hdrs = ["write_ahead.h"],
     visibility = ["//src/storage/tests:__pkg__"],
     deps = [
-        "//src/storage:types",
         "@abseil-cpp//absl/cleanup:cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:log",
@@ -30,9 +29,9 @@ cc_library(
     hdrs = ["key_value_store.h"],
     visibility = ["//src/storage/tests:__pkg__"],
     deps = [
-        "//src/storage:types",
         "//src/storage:write_ahead",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )

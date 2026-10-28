@@ -13,7 +13,6 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
-#include "src/storage/types.h"
 
 using ::absl_testing::StatusIs;
 using ::testing::ContainerEq;
@@ -58,38 +57,15 @@ class WriteAheadLogTest : public ::testing::Test {
 
 TEST_F(WriteAheadLogTest, LogIsConstructedWithoutErrors) { SUCCEED(); }
 
-TEST_F(WriteAheadLogTest, GetRequestsAreNotLogged) {
-  Request request{};
-  request.request_type = RequestType::GET;
-  request.key = "test_key";
-
-  absl::Status status = logger_->LogRequest(request);
-
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Request type is GET")));
-}
-
-TEST_F(WriteAheadLogTest, PutRequestsWithNullKeyReturnError) {
-  Request request{};
-  request.request_type = RequestType::PUT;
-  request.key = "test_key";
-
-  absl::Status status = logger_->LogRequest(request);
-
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("value is null")));
-}
 
 TEST_F(WriteAheadLogTest, SingleRequestIsLoggesCorrectly) {
-  Request request{
-      .request_type = RequestType::PUT,
-      .key = "test_key",
-      .value = "test_value",
-  };
+
+  std::string key = "test_key";
+  std::string value = "test_value";
 
   std::string expected_line = "test_key:test_value";
 
-  ABSL_EXPECT_OK(logger_->LogRequest(request));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key, value));
 
   log_file_.clear();
   std::string logged_line;
@@ -100,23 +76,17 @@ TEST_F(WriteAheadLogTest, SingleRequestIsLoggesCorrectly) {
 }
 
 TEST_F(WriteAheadLogTest, MultipleRequestsLoggedCorrectly) {
-  Request request1{
-      .request_type = RequestType::PUT,
-      .key = "test_key1",
-      .value = "test_value1",
-  };
 
-  Request request2{
-      .request_type = RequestType::PUT,
-      .key = "test_key2",
-      .value = "test_value2",
-  };
+  std::string key_1 = "test_key1";
+  std::string value_1 = "test_value1";
+  std::string key_2 = "test_key2";
+  std::string value_2 = "test_value2";
 
   std::string expected_line1 = "test_key1:test_value1";
   std::string expected_line2 = "test_key2:test_value2";
 
-  ABSL_EXPECT_OK(logger_->LogRequest(request1));
-  ABSL_EXPECT_OK(logger_->LogRequest(request2));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key_1, value_1));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key_2, value_2));
 
   log_file_.clear();
   std::string logged_line1;
@@ -144,23 +114,16 @@ TEST_F(WriteAheadLogTest, RecoveryReturnsEmptyHashMapWithEmptyLog) {
 
 TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {
   // Write some requests to the log
-  Request request1{
-      .request_type = RequestType::PUT,
-      .key = "test_key1",
-      .value = "test_value1",
-  };
-
-  Request request2{
-      .request_type = RequestType::PUT,
-      .key = "test_key2",
-      .value = "test_value2",
-  };
+  std::string key_1 = "test_key1";
+  std::string value_1 = "test_value1";
+  std::string key_2 = "test_key2";
+  std::string value_2 = "test_value2";
 
   std::string expected_line1 = "test_key1:test_value1";
   std::string expected_line2 = "test_key2:test_value2";
 
-  ABSL_EXPECT_OK(logger_->LogRequest(request1));
-  ABSL_EXPECT_OK(logger_->LogRequest(request2));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key_1, value_1));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key_2, value_2));
 
   // destroy the logger class to simulate a crash
   logger_.reset();
@@ -194,23 +157,16 @@ TEST_F(WriteAheadLogTest, RecoverySuccessfullyRecoversEntriesAfterCrash) {
 TEST_F(WriteAheadLogTest,
        LogCorrectlyRecoversMapIfALineWasCorruptedDuringWrite) {
   // Write some requests to the log
-  Request request1{
-      .request_type = RequestType::PUT,
-      .key = "test_key1",
-      .value = "test_value1",
-  };
-
-  Request request2{
-      .request_type = RequestType::PUT,
-      .key = "test_key2",
-      .value = "test_value2",
-  };
+  std::string key_1 = "test_key1";
+  std::string value_1 = "test_value1";
+  std::string key_2 = "test_key2";
+  std::string value_2 = "test_value2";
 
   std::string expected_line1 = "test_key1:test_value1";
   std::string expected_line2 = "test_key2:test_value2";
 
-  ABSL_EXPECT_OK(logger_->LogRequest(request1));
-  ABSL_EXPECT_OK(logger_->LogRequest(request2));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key_1, value_1));
+  ABSL_EXPECT_OK(logger_->LogWriteRequest(key_2, value_2));
 
   // write a corrupted line that is not terminated with a newline character
   log_file_writer_.seekp(0, std::ios_base::end);

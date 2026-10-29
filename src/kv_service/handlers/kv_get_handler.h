@@ -17,11 +17,11 @@ namespace kvstore {
 
 class KVGetRequest : public rpc::Request {
  public:
-  absl::Status DeSerialize(rpc::RawMessage raw_request) override;
-  const std::string& get_key() { return key_; }
+  absl::Status DeSerialize() override;
+  absl::string_view get_key() { return key_; }
 
  private:
-  std::string key_;
+  absl::string_view key_;
 };
 
 class KVGetResponse : public rpc::Response {
@@ -38,8 +38,9 @@ class KVGetResponse : public rpc::Response {
 
 class KVGetHandler : public rpc::Handler<KVGetRequest, KVGetResponse> {
  public:
-  KVGetHandler(std::shared_ptr<KVStore> kv_store)
-      : kv_store_(std::move(kv_store)) {};
+  KVGetHandler(rpc::RawMessage&& raw_message, std::shared_ptr<KVStore> kv_store)
+      : rpc::Handler<KVGetRequest, KVGetResponse>(std::move(raw_message)),
+        kv_store_(std::move(kv_store)) {};
 
  protected:
   absl::Status RunSync() override;
@@ -53,8 +54,9 @@ class KVGetHandlerFactory : public rpc::IHandlerFactory {
  public:
   KVGetHandlerFactory(std::shared_ptr<KVStore> kv_store)
       : kv_store_(std::move(kv_store)) {};
-  std::unique_ptr<rpc::IHandler> CreateHandler() override {
-    return std::make_unique<KVGetHandler>(kv_store_);
+  std::unique_ptr<rpc::IHandler> CreateHandler(
+      rpc::RawMessage&& raw_message) override {
+    return std::make_unique<KVGetHandler>(std::move(raw_message), kv_store_);
   }
 
  private:

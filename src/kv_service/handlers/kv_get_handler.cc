@@ -10,8 +10,8 @@
 
 namespace kvstore {
 
-absl::Status KVGetRequest::DeSerialize(rpc::RawMessage raw_request) {
-  key_ = std::move(raw_request.request_payload);
+absl::Status KVGetRequest::DeSerialize() {
+  key_ = raw_message_.request_payload;
   return absl::OkStatus();
 }
 
@@ -20,7 +20,7 @@ absl::StatusOr<std::string> KVGetResponse::Serialize() {
 }
 
 absl::Status KVGetHandler::ValidateRequest() {
-  const std::string& key = request_.get_key();
+  absl::string_view key = request_.get_key();
   if (key.size() == 0) {
     return absl::InvalidArgumentError("Request key is empty.");
   }

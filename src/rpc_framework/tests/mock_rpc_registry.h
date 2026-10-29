@@ -29,7 +29,7 @@ class MockRpcRegistry : public IRpcRegistry {
   MOCK_METHOD((void), RegisterRpc,
               (uint32_t rpc_id, std::unique_ptr<IHandlerFactory>), (override));
   MOCK_METHOD((absl::StatusOr<std::string>), DispatchRequest,
-              (RawMessage raw_request), (const override));
+              (RawMessage&& raw_request), (const override));
 };
 }  // namespace rpc
 

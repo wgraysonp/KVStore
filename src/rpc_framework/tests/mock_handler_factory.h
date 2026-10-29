@@ -17,14 +17,18 @@ namespace rpc {
 class MockHandlerFactory : public IHandlerFactory {
  public:
   MockHandlerFactory() {
-    ON_CALL(*this, CreateHandler()).WillByDefault([]() {
-      auto mock_handler = std::make_unique<::testing::NiceMock<MockHandler>>();
-      return mock_handler;
-    });
+    ON_CALL(*this, CreateHandler(::testing::_))
+        .WillByDefault([](RawMessage&& raw_message) {
+          auto mock_handler =
+              std::make_unique<::testing::NiceMock<MockHandler>>(
+                  std::move(raw_message));
+          return mock_handler;
+        });
   };
   ~MockHandlerFactory() override = default;
 
-  MOCK_METHOD((std::unique_ptr<IHandler>), CreateHandler, (), (override));
+  MOCK_METHOD((std::unique_ptr<IHandler>), CreateHandler,
+              (RawMessage&& raw_message), (override));
 };
 }  // namespace rpc
 

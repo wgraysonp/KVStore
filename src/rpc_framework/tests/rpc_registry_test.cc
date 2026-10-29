@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -49,7 +50,8 @@ TEST_F(RpcRegistryTest, RpcRegistryDispatchReturnsErrorForNonExistentRpc) {
       .payload_size = 10,
       .request_payload = "hello",
   };
-  absl::StatusOr<std::string> response_bytes = registry_->DispatchRequest(msg);
+  absl::StatusOr<std::string> response_bytes =
+      registry_->DispatchRequest(std::move(msg));
   EXPECT_THAT(response_bytes.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("No registered RPC with id 1")));
@@ -67,7 +69,8 @@ TEST_F(RpcRegistryTest, RpcRegistryDispatchSuccessfullyDispatchesValidRequest) {
       .request_payload = "Grayson",
   };
 
-  absl::StatusOr<std::string> response_bytes = registry_->DispatchRequest(msg);
+  absl::StatusOr<std::string> response_bytes =
+      registry_->DispatchRequest(std::move(msg));
   ABSL_ASSERT_OK(response_bytes);
 
   EXPECT_EQ(response_bytes.value(), "Hello Grayson");
@@ -88,11 +91,12 @@ TEST_F(RpcRegistryTest, RpcRegistryDispatchReturnsErrorOnRpcFailure) {
   // have the factory return a mock handler passing "true" to the constructor
   // this will make the mock handler return an internal error when
   // HandleRequest is called
-  EXPECT_CALL(*mock_factory_, CreateHandler())
+  EXPECT_CALL(*mock_factory_, CreateHandler(::testing::_))
       .Times(1)
-      .WillOnce(Return(std::make_unique<NiceMock<MockHandler>>(true)));
+      .WillOnce(Return(std::make_unique<NiceMock<MockHandler>>(msg, true)));
 
-  absl::StatusOr<std::string> response_bytes = registry_->DispatchRequest(msg);
+  absl::StatusOr<std::string> response_bytes =
+      registry_->DispatchRequest(std::move(msg));
   EXPECT_THAT(response_bytes.status(),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("A terrible error has occured")));

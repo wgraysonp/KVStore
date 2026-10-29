@@ -18,7 +18,7 @@ class IRpcRegistry {
   virtual void RegisterRpc(
       uint32_t rpc_id, std::unique_ptr<IHandlerFactory> handler_factory) = 0;
   virtual absl::StatusOr<std::string> DispatchRequest(
-      RawMessage raw_request) const = 0;
+      RawMessage&& raw_request) const = 0;
 };
 
 class RpcRegistry : public IRpcRegistry {
@@ -34,7 +34,7 @@ class RpcRegistry : public IRpcRegistry {
                    std::unique_ptr<IHandlerFactory> handler_factory) override;
 
   absl::StatusOr<std::string> DispatchRequest(
-      RawMessage raw_request) const override;
+      RawMessage&& raw_request) const override;
 
   const absl::flat_hash_map<uint32_t, std::unique_ptr<IHandlerFactory>>&
   GetRegisteredRpcMap() const {

@@ -16,16 +16,17 @@ void RpcRegistry::RegisterRpc(
 }
 
 absl::StatusOr<std::string> RpcRegistry::DispatchRequest(
-    RawMessage raw_request) const {
+    RawMessage&& raw_request) const {
   auto it = handler_factories_.find(raw_request.rpc_id);
   if (it == handler_factories_.end()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("No registered RPC with id %d", raw_request.rpc_id));
   }
-  std::unique_ptr<IHandler> rpc_handler = it->second->CreateHandler();
+  std::unique_ptr<IHandler> rpc_handler =
+      it->second->CreateHandler(std::move(raw_request));
 
   ABSL_ASSIGN_OR_RETURN(std::string response_bytes,
-                        rpc_handler->HandleRequest(std::move(raw_request)));
+                        rpc_handler->HandleRequest());
 
   return response_bytes;
 }

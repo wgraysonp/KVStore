@@ -17,6 +17,8 @@ namespace kvstore {
 
 class KVGetRequest : public rpc::Request {
  public:
+  KVGetRequest(rpc::RawMessage&& raw_message)
+      : rpc::Request(std::move(raw_message)) {};
   absl::Status DeSerialize() override;
   absl::string_view get_key() { return key_; }
 

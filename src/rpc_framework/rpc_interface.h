@@ -41,7 +41,7 @@ template <std::derived_from<Request> RequestType,
           std::derived_from<Response> ResponseType>
 class Handler : public IHandler {
  public:
-  Handler(RawMessage&& raw_message) : request_(raw_message) {};
+  Handler(RawMessage&& raw_message) : request_(std::move(raw_message)) {};
   Handler& operator=(const Handler&) = delete;
   Handler(const Handler&) = delete;
   Handler& operator=(Handler&&) = delete;

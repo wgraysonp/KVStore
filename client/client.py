@@ -12,17 +12,40 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('server_IP', '127.0.0.1', 'The server IP address.')
 flags.DEFINE_integer('server_port', 8080, 'Port the server is listening on.')
 flags.DEFINE_string('name', 'Findlay', 'Name to send to the server.')
+flags.DEFINE_enum('request_type', 'get', ['get', 'put'],
+                  'get key from value or put new key value pair')
+flags.DEFINE_string('key', 'Dog', 'key for get or put requests')
+flags.DEFINE_string(
+    'value', 'Findlay',
+    'value for put requests. Ignored if the request type is get')
+
+
+def construct_payload() -> bytes:
+    if FLAGS.request_type == 'get':
+        return FLAGS.key.encode('utf-8')
+
+    key_header = struct.pack('!I', len(FLAGS.key))
+    val_header = struct.pack('!I', len(FLAGS.value))
+    key_bytes = FLAGS.key.encode('utf-8')
+    val_bytes = FLAGS.value.encode('utf-8')
+
+    return b"".join([key_header, key_bytes, val_header, val_bytes])
 
 
 def send_payload(client_socket: socket.socket) -> None:
-    payload = FLAGS.name
-    print(f"Sending: {payload}")
-    payload_bytes = payload.encode('utf-8')
-    header = struct.pack('!I', len(payload_bytes))
-    rpc_id = struct.pack('!I', 0)
+
+    print(f"Sending: {FLAGS.request_type} request")
+    print(f"Request key: {FLAGS.key}")
+    if FLAGS.request_type == 'put':
+        print(f"Request value: {FLAGS.value}")
+
+    payload_bytes = construct_payload()
+    rpc_id = 0 if FLAGS.request_type == 'get' else 1
+    size_header = struct.pack('!I', len(payload_bytes))
+    rpc_id_header = struct.pack('!I', rpc_id)
     try:
-        client_socket.sendall(header)
-        client_socket.sendall(rpc_id)
+        client_socket.sendall(size_header)
+        client_socket.sendall(rpc_id_header)
         client_socket.sendall(payload_bytes)
     except Exception as e:
         raise

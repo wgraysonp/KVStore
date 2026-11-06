@@ -1,8 +1,7 @@
-#include "src/endpoint/socket_utils.h"
+#include "src/common/utils/socket_utils.h"
 
 #include <fcntl.h>
 #include <netinet/in.h>
-#include <unistd.h>
 
 #include <cstdint>
 #include <cstring>
@@ -14,7 +13,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
-namespace endpoint {
+namespace common {
 
 absl::Status SetNonBlocking(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
@@ -146,4 +145,4 @@ absl::Status WriteErrorMessageToClient(absl::string_view error_message,
 
   return absl::OkStatus();
 }
-}  // namespace endpoint
+}  // namespace common

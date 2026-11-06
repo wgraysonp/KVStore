@@ -3,15 +3,14 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "src/common/consts.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/rpc_interface.h"
 #include "src/storage/key_value_store.h"
-
-#define DEFAULT_VAL_SIZE 20
-#define MAX_KEY_SIZE 128
 
 namespace kvstore {
 
@@ -28,7 +27,7 @@ class KVGetRequest : public rpc::Request {
 
 class KVGetResponse : public rpc::Response {
  public:
-  KVGetResponse() { value_.reserve(DEFAULT_VAL_SIZE); }
+  KVGetResponse() { value_.reserve(common::DEFAULT_VAL_SIZE); }
   absl::StatusOr<std::string> Serialize() override;
 
   const std::string& get_value() { return value_; }

@@ -11,7 +11,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "src/endpoint/socket_utils.h"
+#include "src/common/utils/socket_utils.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/rpc_registry.h"
 
@@ -68,8 +68,8 @@ class ClientConnection : public IClientConnection {
   ConnectionStatus ProcessReadStage();
   ConnectionStatus ProcessDispatchStage();
   ConnectionStatus ProcessWriteStage();
-  absl::StatusOr<ReadState> PerformClientRead();
-  absl::StatusOr<WriteState> PerformClientWrite();
+  absl::StatusOr<common::ReadState> PerformClientRead();
+  absl::StatusOr<common::WriteState> PerformClientWrite();
 
   // creates a raw message struct from the read_buffers to send to rpc routing,
   // clears the intrenal read buffers, and sets bytes_read trackers to zero.

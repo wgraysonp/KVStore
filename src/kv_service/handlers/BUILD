@@ -5,6 +5,7 @@ cc_library(
     srcs = ["kv_get_handler.cc"],
     hdrs = ["kv_get_handler.h"],
     deps = [
+        "//src/common:consts",
         "//src/rpc_framework",
         "//src/storage:key_value_store",
         "@abseil-cpp//absl/status",
@@ -18,6 +19,8 @@ cc_library(
     srcs = ["kv_put_handler.cc"],
     hdrs = ["kv_put_handler.h"],
     deps = [
+        "//src/common:consts",
+        "//src/common/utils:socket_utils",
         "//src/endpoint",
         "//src/rpc_framework",
         "//src/storage:key_value_store",

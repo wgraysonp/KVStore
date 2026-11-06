@@ -4,7 +4,6 @@
 #include <sys/epoll.h>
 
 #include <atomic>
-#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>

@@ -24,9 +24,9 @@ absl::Status KVGetHandler::ValidateRequest() {
   if (key.size() == 0) {
     return absl::InvalidArgumentError("Request key is empty.");
   }
-  if (key.size() > MAX_KEY_SIZE) {
+  if (key.size() > common::MAX_KEY_SIZE) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Requested key is too large. Max key size: %s", MAX_KEY_SIZE));
+        "Requested key is too large. Max key size: %s", common::MAX_KEY_SIZE));
   }
   return absl::OkStatus();
 }

@@ -13,8 +13,8 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "src/common/utils/socket_utils.h"
 #include "src/endpoint/client_connection.h"
-#include "src/endpoint/socket_utils.h"
 
 namespace endpoint {
 
@@ -54,7 +54,7 @@ absl::Status ConnectionManager::BindAndListen() {
     return absl::ErrnoToStatus(errno, "Listen command failed");
   }
 
-  ABSL_RETURN_IF_ERROR(SetNonBlocking(listen_fd_));
+  ABSL_RETURN_IF_ERROR(common::SetNonBlocking(listen_fd_));
 
   epoll_fd_ = epoll_create1(0);
   if (epoll_fd_ < 0) {

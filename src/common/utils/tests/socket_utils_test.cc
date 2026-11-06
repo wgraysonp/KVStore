@@ -1,4 +1,4 @@
-#include "src/endpoint/socket_utils.h"
+#include "src/common/utils/socket_utils.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -15,7 +15,7 @@
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-namespace endpoint {
+namespace common {
 
 class SocketUtilsTest : public ::testing::Test {
  protected:
@@ -342,4 +342,4 @@ TEST_F(SocketUtilsTest,
   EXPECT_EQ(client_buffer, expected_response);
 }
 
-}  // namespace endpoint
+}  // namespace common

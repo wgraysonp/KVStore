@@ -5,10 +5,11 @@ cc_binary(
     name = "kv_service",
     srcs = ["main.cc"],
     deps = [
+        "//src/common:consts",
         "//src/endpoint",
-        "//src/storage",
-        "//src/rpc_framework",
         "//src/kv_service/handlers:kv_service_handlers",
+        "//src/rpc_framework",
+        "//src/storage",
         "@abseil-cpp//absl/log:log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",

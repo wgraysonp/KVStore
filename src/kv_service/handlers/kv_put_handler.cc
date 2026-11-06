@@ -11,22 +11,22 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "src/endpoint/consts.h"
-#include "src/endpoint/socket_utils.h"
+#include "src/common/consts.h"
+#include "src/common/utils/socket_utils.h"
 
 namespace kvstore {
 namespace {
 absl::StatusOr<std::size_t> ConsumeAndReadSizeHeader(
     absl::string_view& mutable_payload) {
-  if (mutable_payload.size() < endpoint::HEADER_INT_SIZE) {
+  if (mutable_payload.size() < common::HEADER_INT_SIZE) {
     return absl::InvalidArgumentError("payload does not contain size of key");
   }
 
   ABSL_ASSIGN_OR_RETURN(uint32_t key_size,
-                        endpoint::ReadUint32(mutable_payload.substr(
-                            0, endpoint::HEADER_INT_SIZE)));
+                        common::ReadUint32(mutable_payload.substr(
+                            0, common::HEADER_INT_SIZE)));
   mutable_payload.remove_prefix(
-      std::min(endpoint::HEADER_INT_SIZE, mutable_payload.size()));
+      std::min(common::HEADER_INT_SIZE, mutable_payload.size()));
 
   return static_cast<std::size_t>(key_size);
 }
@@ -68,9 +68,9 @@ absl::Status KVPutHandler::ValidateRequest() {
   if (key.size() == 0) {
     return absl::InvalidArgumentError("Request key is empty.");
   }
-  if (key.size() > MAX_KEY_SIZE) {
+  if (key.size() > common::MAX_KEY_SIZE) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Requested key is too large. Max key size: %s", MAX_KEY_SIZE));
+        "Requested key is too large. Max key size: %s", common::MAX_KEY_SIZE));
   }
 
   absl::string_view value = request_.get_value();

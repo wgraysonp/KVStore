@@ -7,14 +7,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "src/endpoint/consts.h"
+#include "src/common/consts.h"
 #include "src/rpc_framework/tests/mock_rpc_registry.h"
 
 using ::absl_testing::StatusIs;
@@ -207,7 +206,7 @@ TEST_F(ClientConnectionTest,
 TEST_F(ClientConnectionTest,
        HandleEventWritesInvalidArgumentToClientIfRequestedPayloadIsTooLarge) {
   uint32_t big_payload_size =
-      htonl(static_cast<uint32_t>(MAX_CLIENT_PAYLOAD_SIZE) + 1);
+      htonl(static_cast<uint32_t>(common::MAX_CLIENT_PAYLOAD_SIZE) + 1);
   uint32_t rpc_id = htonl(1);
   char size_header[4];
   char rpc_id_header[4];

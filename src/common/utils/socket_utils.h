@@ -1,9 +1,6 @@
 #ifndef SRC_KVSERVICE_SOCKET_UTILS_H_
 #define SRC_KVSERVICE_SOCKET_UTILS_H_
 
-#include <fcntl.h>
-#include <unistd.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -11,7 +8,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
-namespace endpoint {
+namespace common {
 
 enum class ReadState {
   kSUCCESS = 1,  // successfully read all requested bytes
@@ -62,6 +59,6 @@ absl::StatusOr<WriteResult> WriteToClient(absl::string_view buffer,
 absl::Status WriteErrorMessageToClient(absl::string_view error_message,
                                        int client_fd);
 
-}  // namespace endpoint
+}  // namespace common
 
 #endif  // SRC_KVSERVICE_SOCKET_UTILS_H_

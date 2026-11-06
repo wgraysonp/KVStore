@@ -4,10 +4,9 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
+#include "src/common/consts.h"
 #include "src/endpoint/client_connection.h"
 #include "src/endpoint/connection_manager.h"
-#include "src/endpoint/consts.h"
-#include "src/endpoint/epoll_server.h"
 #include "src/kv_service/handlers/kv_get_handler.h"
 #include "src/kv_service/handlers/kv_put_handler.h"
 #include "src/rpc_framework/rpc_interface.h"
@@ -35,7 +34,7 @@ absl::StatusOr<std::unique_ptr<endpoint::ConnectionManager>> InitService() {
       std::make_unique<endpoint::ClientConnectionFactory>();
 
   auto connection_manager = std::make_unique<endpoint::ConnectionManager>(
-      endpoint::PORT, std::move(rpc_registry), std::move(connection_factory));
+      common::PORT, std::move(rpc_registry), std::move(connection_factory));
 
   return connection_manager;
 }

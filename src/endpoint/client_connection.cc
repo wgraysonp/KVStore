@@ -1,7 +1,6 @@
 #include "src/endpoint/client_connection.h"
 
 #include <netinet/in.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -13,14 +12,14 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "src/endpoint/consts.h"
-#include "src/endpoint/socket_utils.h"
+#include "src/common/consts.h"
+#include "src/common/utils/socket_utils.h"
 #include "src/rpc_framework/data.h"
 
 namespace endpoint {
 
 absl::Status ClientConnection::MakeNonBlocking() {
-  ABSL_RETURN_IF_ERROR(SetNonBlocking(client_fd_));
+  ABSL_RETURN_IF_ERROR(common::SetNonBlocking(client_fd_));
   return absl::OkStatus();
 }
 
@@ -54,21 +53,21 @@ absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
 }
 
 ConnectionStatus ClientConnection::ProcessReadStage() {
-  absl::StatusOr<ReadState> read_status = PerformClientRead();
+  absl::StatusOr<common::ReadState> read_status = PerformClientRead();
   if (!read_status.ok()) {
     HandleDisconnectOnError(read_status.status());
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
-  ReadState read_state = std::move(read_status).value();
+  common::ReadState read_state = std::move(read_status).value();
 
   switch (read_state) {
-    case ReadState::kSUCCESS:
+    case common::ReadState::kSUCCESS:
       return ConnectionStatus::CONNECTED_DISPATCH;
-    case ReadState::kEAGAIN:
+    case common::ReadState::kEAGAIN:
       LOG(INFO) << "Read for client fd " << client_fd_
                 << " interrupted by EAGAIN";
       return ConnectionStatus::CONNECTED_READ;
-    case ReadState::kEOF:
+    case common::ReadState::kEOF:
       return ConnectionStatus::DISCONNECTED_SUCCESS;
     default:
       LOG(ERROR) << "State unknown in ProcessReadState. Disconnecting";
@@ -97,13 +96,13 @@ ConnectionStatus ClientConnection::ProcessDispatchStage() {
 
   // store the size of the response in network byte order
   response_header_buffer_ =
-      ConvertUint32ToNetworkBytes(response_buffer_.size());
+      common::ConvertUint32ToNetworkBytes(response_buffer_.size());
 
   return ConnectionStatus::CONNECTED_WRITE;
 }
 
 ConnectionStatus ClientConnection::ProcessWriteStage() {
-  absl::StatusOr<WriteState> write_status = PerformClientWrite();
+  absl::StatusOr<common::WriteState> write_status = PerformClientWrite();
   if (!write_status.ok()) {
     // pass no arguments here to bypass writing error code to client
     // since we failed in write state
@@ -111,9 +110,9 @@ ConnectionStatus ClientConnection::ProcessWriteStage() {
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
 
-  WriteState write_state = std::move(write_status).value();
+  common::WriteState write_state = std::move(write_status).value();
 
-  if (write_state == WriteState::kEAGAIN) {
+  if (write_state == common::WriteState::kEAGAIN) {
     LOG(INFO) << "Write for client fd " << client_fd_ << "interupted by EAGAIN";
     return ConnectionStatus::CONNECTED_WRITE;
   }
@@ -123,11 +122,11 @@ ConnectionStatus ClientConnection::ProcessWriteStage() {
   return ConnectionStatus::CONNECTED_READ;
 }
 
-absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
-  if (size_header_bytes_read_ < HEADER_INT_SIZE) {
-    absl::StatusOr<ReadResult> read_status =
-        ReadFromClient(size_header_buffer_, size_header_bytes_read_,
-                       HEADER_INT_SIZE - size_header_bytes_read_, client_fd_);
+absl::StatusOr<common::ReadState> ClientConnection::PerformClientRead() {
+  if (size_header_bytes_read_ < common::HEADER_INT_SIZE) {
+    absl::StatusOr<common::ReadResult> read_status = common::ReadFromClient(
+        size_header_buffer_, size_header_bytes_read_,
+        common::HEADER_INT_SIZE - size_header_bytes_read_, client_fd_);
     if (!read_status.ok()) {
       LOG(ERROR) << "ReadFromClient failed: "
                  << read_status.status().ToString();
@@ -140,20 +139,20 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
       }
       return read_status.status();
     }
-    ReadResult read_result = std::move(read_status).value();
+    common::ReadResult read_result = std::move(read_status).value();
     size_header_bytes_read_ += read_result.bytes_read;
 
     // read did not complete due to EAGAIN or EWOULDBLOCK.
     // yeild and wait for next event.
-    if (read_result.state != ReadState::kSUCCESS) {
+    if (read_result.state != common::ReadState::kSUCCESS) {
       return read_result.state;
     }
   }
 
-  if (rpc_id_header_bytes_read_ < HEADER_INT_SIZE) {
-    absl::StatusOr<ReadResult> read_status =
-        ReadFromClient(rpc_id_buffer_, rpc_id_header_bytes_read_,
-                       HEADER_INT_SIZE - rpc_id_header_bytes_read_, client_fd_);
+  if (rpc_id_header_bytes_read_ < common::HEADER_INT_SIZE) {
+    absl::StatusOr<common::ReadResult> read_status = common::ReadFromClient(
+        rpc_id_buffer_, rpc_id_header_bytes_read_,
+        common::HEADER_INT_SIZE - rpc_id_header_bytes_read_, client_fd_);
 
     if (!read_status.ok()) {
       LOG(ERROR) << "ReadFromClient failed: "
@@ -167,20 +166,20 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
       }
       return read_status.status();
     }
-    ReadResult read_result = std::move(read_status).value();
+    common::ReadResult read_result = std::move(read_status).value();
     rpc_id_header_bytes_read_ += read_result.bytes_read;
 
-    if (read_result.state == ReadState::kEOF) {
+    if (read_result.state == common::ReadState::kEOF) {
       LOG(ERROR) << "Client connction closed mid read";
       return absl::CancelledError("");
-    } else if (read_result.state == ReadState::kEAGAIN) {
+    } else if (read_result.state == common::ReadState::kEAGAIN) {
       return read_result.state;
     }
   }
 
   // TODO: clean this up and maybe move it to a helper.
   std::size_t expected_payload_size;
-  if (absl::StatusOr<uint32_t> status = ReadUint32(size_header_buffer_);
+  if (absl::StatusOr<uint32_t> status = common::ReadUint32(size_header_buffer_);
       status.ok()) {
     expected_payload_size = static_cast<std::size_t>(std::move(status).value());
   } else {
@@ -188,18 +187,18 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
     return status.status();
   }
 
-  if (expected_payload_size > MAX_CLIENT_PAYLOAD_SIZE) {
+  if (expected_payload_size > common::MAX_CLIENT_PAYLOAD_SIZE) {
     LOG(ERROR) << "Client requested payload too large";
     return absl::InvalidArgumentError("Requested payload is too large");
   } else if (expected_payload_size == 0) {
     LOG(INFO) << "Client requested payload size is zero. Skipping payload read";
-    return ReadState::kSUCCESS;
+    return common::ReadState::kSUCCESS;
   }
 
   if (payload_bytes_read_ < expected_payload_size) {
-    absl::StatusOr<ReadResult> read_status =
-        ReadFromClient(payload_buffer_, payload_bytes_read_,
-                       expected_payload_size - payload_bytes_read_, client_fd_);
+    absl::StatusOr<common::ReadResult> read_status = common::ReadFromClient(
+        payload_buffer_, payload_bytes_read_,
+        expected_payload_size - payload_bytes_read_, client_fd_);
     if (!read_status.ok()) {
       LOG(ERROR) << "Read from client failed: "
                  << read_status.status().ToString();
@@ -212,10 +211,10 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
       }
       return read_status.status();
     }
-    ReadResult read_result = std::move(read_status).value();
+    common::ReadResult read_result = std::move(read_status).value();
     payload_bytes_read_ += read_result.bytes_read;
 
-    if (read_result.state == ReadState::kEOF) {
+    if (read_result.state == common::ReadState::kEOF) {
       LOG(ERROR) << "Client connection closed mid read";
       return absl::CancelledError("");
     }
@@ -226,11 +225,11 @@ absl::StatusOr<ReadState> ClientConnection::PerformClientRead() {
   return absl::InternalError("");
 }
 
-absl::StatusOr<WriteState> ClientConnection::PerformClientWrite() {
-  if (response_header_bytes_written_ < HEADER_INT_SIZE) {
-    absl::StatusOr<WriteResult> status = WriteToClient(
+absl::StatusOr<common::WriteState> ClientConnection::PerformClientWrite() {
+  if (response_header_bytes_written_ < common::HEADER_INT_SIZE) {
+    absl::StatusOr<common::WriteResult> status = common::WriteToClient(
         response_header_buffer_, response_header_bytes_written_,
-        HEADER_INT_SIZE - response_header_bytes_written_, client_fd_);
+        common::HEADER_INT_SIZE - response_header_bytes_written_, client_fd_);
 
     if (!status.ok()) {
       LOG(ERROR) << "WriteToClient failed " << status.status().ToString();
@@ -242,16 +241,16 @@ absl::StatusOr<WriteState> ClientConnection::PerformClientWrite() {
       }
       return status.status();
     }
-    WriteResult write_result = std::move(status).value();
+    common::WriteResult write_result = std::move(status).value();
     response_header_bytes_written_ += write_result.bytes_written;
 
-    if (write_result.state == WriteState::kEAGAIN) {
+    if (write_result.state == common::WriteState::kEAGAIN) {
       return write_result.state;
     }
   }
 
   if (response_bytes_written_ < response_buffer_.size()) {
-    absl::StatusOr<WriteResult> status = WriteToClient(
+    absl::StatusOr<common::WriteResult> status = common::WriteToClient(
         response_buffer_, response_bytes_written_,
         response_buffer_.size() - response_bytes_written_, client_fd_);
 
@@ -265,7 +264,7 @@ absl::StatusOr<WriteState> ClientConnection::PerformClientWrite() {
       }
       return status.status();
     }
-    WriteResult write_result = std::move(status).value();
+    common::WriteResult write_result = std::move(status).value();
     response_bytes_written_ += write_result.bytes_written;
 
     // no need to check the state here. Regardless, it is handled by caller
@@ -280,7 +279,7 @@ absl::StatusOr<rpc::RawMessage>
 ClientConnection::MoveClientReadDataToRawMessage() {
   rpc::RawMessage msg;
 
-  if (absl::StatusOr<uint32_t> status = ReadUint32(size_header_buffer_);
+  if (absl::StatusOr<uint32_t> status = common::ReadUint32(size_header_buffer_);
       !status.ok()) {
     LOG(ERROR) << "ReadUint32 failed: " << status.status().ToString();
     return absl::InternalError("");
@@ -290,7 +289,7 @@ ClientConnection::MoveClientReadDataToRawMessage() {
     size_header_bytes_read_ = 0;
   }
 
-  if (absl::StatusOr<uint32_t> status = ReadUint32(rpc_id_buffer_);
+  if (absl::StatusOr<uint32_t> status = common::ReadUint32(rpc_id_buffer_);
       !status.ok()) {
     LOG(ERROR) << "ReadUint32 failed: " << status.status().ToString();
     return absl::InternalError("");
@@ -326,7 +325,7 @@ void ClientConnection::HandleError(const absl::Status& status) {
     case absl::StatusCode::kOutOfRange:
     case absl::StatusCode::kNotFound:
       if (absl::Status error_write_status =
-              WriteErrorMessageToClient(status.ToString(), client_fd_);
+              common::WriteErrorMessageToClient(status.ToString(), client_fd_);
           !error_write_status.ok()) {
         LOG(ERROR) << "WriteErrorMessageToClient failed "
                    << error_write_status.ToString();
@@ -339,7 +338,7 @@ void ClientConnection::HandleError(const absl::Status& status) {
                  << ". Notifiying client of internal error. Error status: "
                  << status.ToString();
       if (absl::Status error_write_status =
-              WriteErrorMessageToClient("Internal Error", client_fd_);
+              common::WriteErrorMessageToClient("Internal Error", client_fd_);
           !error_write_status.ok()) {
         LOG(ERROR) << "WriteErrorMessageToClient failed "
                    << error_write_status.ToString();

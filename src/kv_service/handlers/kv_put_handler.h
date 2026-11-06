@@ -12,9 +12,6 @@
 #include "src/rpc_framework/rpc_interface.h"
 #include "src/storage/key_value_store.h"
 
-#define DEFAULT_VAL_SIZE 20
-#define MAX_KEY_SIZE 128
-
 namespace kvstore {
 
 class KVPutRequest : public rpc::Request {

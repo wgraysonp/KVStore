@@ -16,6 +16,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "src/endpoint/tests/mock_client_connection.h"
+#include "src/endpoint/timer_list.h"
 #include "src/rpc_framework/tests/mock_rpc_registry.h"
 
 using ::absl_testing::StatusIs;
@@ -28,8 +29,9 @@ namespace endpoint {
 
 class ConnectionManagerTest : public ::testing::Test {
  protected:
-  NiceMock<MockClientConnectionFactory>* mock_factory_;
+  NiceMock<MockClientConnectionFactory>* mock_factory_ = nullptr;
   std::unique_ptr<ConnectionManager> connection_manager_;
+  TimerList* timer_list_ = nullptr;
 
   void SetUp() override {
     auto temp_mock_factory =
@@ -38,8 +40,13 @@ class ConnectionManagerTest : public ::testing::Test {
 
     auto mock_registry = std::make_shared<rpc::MockRpcRegistry>();
 
+    std::unique_ptr<TimerList> temp_timer_list =
+        std::make_unique<TimerList>(absl::Seconds(30));
+    timer_list_ = temp_timer_list.get();
+
     connection_manager_ = std::make_unique<ConnectionManager>(
-        PORT, std::move(mock_registry), std::move(temp_mock_factory));
+        PORT, std::move(mock_registry), std::move(temp_mock_factory),
+        std::move(temp_timer_list));
   }
 
   int ClientConnect() {

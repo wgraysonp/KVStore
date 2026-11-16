@@ -35,6 +35,7 @@ cc_test(
     deps = [
         "//src/endpoint:client_connection",
         "//src/endpoint:connection_manager",
+        "//src/endpoint:timer_list",
         "//src/endpoint/tests:mock_client_connection",
         "//src/rpc_framework/tests:mock_rpc_registry",
         "@abseil-cpp//absl/container:flat_hash_map",

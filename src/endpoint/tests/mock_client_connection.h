@@ -22,6 +22,7 @@ class MockClientConnection : public IClientConnection {
 
   MOCK_METHOD((absl::Status), MakeNonBlocking, (), (override));
   MOCK_METHOD((absl::StatusOr<ConnectionStatus>), HandleEvent, (), (override));
+  MOCK_METHOD((void), WriteTimeOutMessageToClient, (), (override));
 };
 
 class MockClientConnectionFactory : public IClientConnectionFactory {

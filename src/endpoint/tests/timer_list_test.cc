@@ -219,4 +219,27 @@ TEST_F(TimerListTest,
             second_connection_time + threshold_duration_);
 }
 
+TEST_F(TimerListTest, DeleteConnectionCorrectlyDeletesConnection) {
+  int test_client_fd = 5;
+  absl::Time connection_time = absl::FromCivil(absl::CivilSecond(), utc_);
+
+  ABSL_ASSERT_OK(
+      timer_list_->AddNewConnection(test_client_fd, connection_time));
+
+  timer_list_->DeleteConnection(test_client_fd);
+
+  const std::list<ConnectionTimer>& connections_list =
+      timer_list_->GetConnectionList();
+
+  EXPECT_TRUE(connections_list.empty());
+
+  bool found_connection_in_map = false;
+
+  for (auto [fd, unused_it] : timer_list_->GetConnectionMapView()){
+    if (fd == test_client_fd) found_connection_in_map = true;
+  }
+
+  EXPECT_FALSE(found_connection_in_map);
+}
+
 }  // namespace endpoint

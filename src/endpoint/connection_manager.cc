@@ -143,7 +143,7 @@ void ConnectionManager::ProcessActiveEpollEvents(
     } else {
       if (absl::Status status = HandleExistingClientEvent(event);
           !status.ok()) {
-        LOG(ERROR) << "HandleExistingClientEvent faild. Error message: "
+        LOG(ERROR) << "HandleExistingClientEvent failed. Error message: "
                    << status.message();
       }
     }
@@ -186,6 +186,14 @@ absl::Status ConnectionManager::AcceptNewConnection() {
 absl::Status ConnectionManager::HandleExistingClientEvent(
     const epoll_event& ev) {
   const int client_fd = ev.data.fd;
+
+  if (absl::Status timer_refresh_status =
+          timer_list_->RefreshConnection(client_fd, absl::Now());
+      !timer_refresh_status.ok()) {
+    LOG(WARNING) << "Failed to refresh connection timer for client "
+                 << client_fd
+                 << ". Error message: " << timer_refresh_status.ToString();
+  }
 
   absl::StatusOr<ConnectionStatus> connection_status;
   if (auto it = active_connections_.find(client_fd);

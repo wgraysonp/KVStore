@@ -45,3 +45,18 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "timer_list_test",
+    size = "small",
+    srcs = ["timer_list_test.cc"],
+    deps = [
+        "//src/endpoint:timer_list",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

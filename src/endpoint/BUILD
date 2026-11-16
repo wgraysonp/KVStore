@@ -2,6 +2,18 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
+    name = "timer_list",
+    srcs = ["timer_list.cc"],
+    hdrs = ["timer_list.h"],
+    visibility = ["//src/endpoint/tests:__pkg__"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
     name = "client_connection",
     srcs = ["client_connection.cc"],
     hdrs = ["client_connection.h"],

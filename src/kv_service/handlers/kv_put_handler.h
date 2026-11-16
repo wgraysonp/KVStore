@@ -25,7 +25,6 @@ class KVPutRequest : public rpc::Request {
  private:
   absl::string_view key_;
   absl::string_view value_;
-  // rpc::RawMessage raw_message_;
 };
 
 class KVPutResponse : public rpc::Response {

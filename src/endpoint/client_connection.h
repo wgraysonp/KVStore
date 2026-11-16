@@ -30,6 +30,7 @@ class IClientConnection {
   virtual ~IClientConnection() = default;
   virtual absl::Status MakeNonBlocking() = 0;
   virtual absl::StatusOr<ConnectionStatus> HandleEvent() = 0;
+  virtual void WriteTimeOutMessageToClient() = 0;
 };
 
 class ClientConnection : public IClientConnection {
@@ -47,6 +48,7 @@ class ClientConnection : public IClientConnection {
 
   absl::Status MakeNonBlocking() override;
   absl::StatusOr<ConnectionStatus> HandleEvent() override;
+  void WriteTimeOutMessageToClient() override;
 
   ConnectionStatus GetConnectionStatus() const { return connection_status_; }
 

@@ -39,6 +39,7 @@ cc_library(
         "//src/common:consts",
         "//src/common/utils:socket_utils",
         "//src/endpoint:client_connection",
+        "//src/endpoint:timer_list",
         "//src/rpc_framework",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:log",
@@ -55,5 +56,6 @@ cc_library(
     deps = [
         "//src/endpoint:client_connection",
         "//src/endpoint:connection_manager",
+        "//src/endpoint:timer_list",
     ],
 )

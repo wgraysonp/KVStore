@@ -52,6 +52,10 @@ absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
   return connection_status_;
 }
 
+void ClientConnection::WriteTimeOutMessageToClient() {
+  HandleError(absl::DeadlineExceededError("Connection Timed Out"));
+}
+
 ConnectionStatus ClientConnection::ProcessReadStage() {
   absl::StatusOr<common::ReadState> read_status = PerformClientRead();
   if (!read_status.ok()) {
@@ -321,6 +325,7 @@ void ClientConnection::HandleError(const absl::Status& status) {
     case absl::StatusCode::kUnavailable:
       // cannot write a message to client if the connection is broken
       return;
+    case absl::StatusCode::kDeadlineExceeded:
     case absl::StatusCode::kInvalidArgument:
     case absl::StatusCode::kOutOfRange:
     case absl::StatusCode::kNotFound:

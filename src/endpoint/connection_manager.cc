@@ -13,6 +13,7 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "src/common/utils/socket_utils.h"
 #include "src/endpoint/client_connection.h"
 
@@ -85,8 +86,14 @@ absl::Status ConnectionManager::LoopForever() {
     }
   });
 
+  absl::Time last_timeout_check = absl::Now();
+
   while (is_running_) {
     ABSL_RETURN_IF_ERROR(LoopOnce(100));
+    if (absl::Now() - last_timeout_check >= timeout_check_frequency_) {
+      CloseExpiredConnections(absl::Now());
+      last_timeout_check = absl::Now();
+    }
   }
   return absl::OkStatus();
 }
@@ -106,6 +113,21 @@ absl::Status ConnectionManager::LoopOnce(int time_out) {
   ProcessActiveEpollEvents(events_);
 
   return absl::OkStatus();
+}
+
+void ConnectionManager::CloseExpiredConnections(absl::Time threshold_time) {
+  std::vector<int> expired_fds =
+      timer_list_->ClearExpiredConnections(threshold_time);
+  for (auto fd : expired_fds) {
+    if (auto it = active_connections_.find(fd);
+        it == active_connections_.end()) {
+      LOG(ERROR) << "Close expired connections attempted to close a "
+                    "non-existant connection";
+    } else {
+      it->second->WriteTimeOutMessageToClient();
+      active_connections_.erase(it);
+    }
+  }
 }
 
 void ConnectionManager::Stop() { is_running_ = false; }
@@ -154,6 +176,7 @@ absl::Status ConnectionManager::AcceptNewConnection() {
 
   ABSL_RETURN_IF_ERROR(connection->MakeNonBlocking());
 
+  ABSL_RETURN_IF_ERROR(timer_list_->AddNewConnection(client_fd, absl::Now()));
   active_connections_.emplace(client_fd, std::move(connection));
 
   std::move(close_fd).Cancel();
@@ -179,6 +202,7 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
     LOG(ERROR) << "Handle Event failed with error message: "
                << connection_status.status().ToString()
                << " Closing connection for client fd " << client_fd;
+    timer_list_->DeleteConnection(client_fd);
     active_connections_.erase(client_fd);
     return absl::OkStatus();
   }
@@ -187,11 +211,13 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
     case ConnectionStatus::DISCONNECTED_ERROR:
       LOG(INFO) << "Client " << client_fd
                 << " disconnected with error. Closing connection.";
+      timer_list_->DeleteConnection(client_fd);
       active_connections_.erase(client_fd);
       break;
     case ConnectionStatus::DISCONNECTED_SUCCESS:
       LOG(INFO) << "Client " << client_fd
                 << " disconnected successfully. Closing connection.";
+      timer_list_->DeleteConnection(client_fd);
       active_connections_.erase(client_fd);
       break;
     case ConnectionStatus::CONNECTED_READ:
@@ -201,6 +227,7 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
                 << " handled successfully. Returning to epoll loop.";
       break;
     default:
+      timer_list_->DeleteConnection(client_fd);
       active_connections_.erase(client_fd);
       return absl::InternalError(absl::StrFormat(
           "Unknown connection status when handling event for client %d. "

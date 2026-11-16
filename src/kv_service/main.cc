@@ -7,6 +7,7 @@
 #include "src/common/consts.h"
 #include "src/endpoint/client_connection.h"
 #include "src/endpoint/connection_manager.h"
+#include "src/endpoint/timer_list.h"
 #include "src/kv_service/handlers/kv_get_handler.h"
 #include "src/kv_service/handlers/kv_put_handler.h"
 #include "src/rpc_framework/rpc_interface.h"
@@ -33,8 +34,12 @@ absl::StatusOr<std::unique_ptr<endpoint::ConnectionManager>> InitService() {
   auto connection_factory =
       std::make_unique<endpoint::ClientConnectionFactory>();
 
+  auto timer_list =
+      std::make_unique<endpoint::TimerList>(common::CLIENT_TIMEOUT_THRESHOLD);
+
   auto connection_manager = std::make_unique<endpoint::ConnectionManager>(
-      common::PORT, std::move(rpc_registry), std::move(connection_factory));
+      common::PORT, std::move(rpc_registry), std::move(connection_factory),
+      std::move(timer_list));
 
   return connection_manager;
 }

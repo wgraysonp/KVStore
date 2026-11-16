@@ -10,7 +10,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "src/endpoint/client_connection.h"
+#include "src/endpoint/timer_list.h"
 #include "src/rpc_framework/rpc_registry.h"
 
 namespace endpoint {
@@ -19,12 +21,14 @@ class ConnectionManager {
  public:
   explicit ConnectionManager(
       int port, std::shared_ptr<rpc::IRpcRegistry> rpc_registry,
-      std::unique_ptr<IClientConnectionFactory> connection_factory)
+      std::unique_ptr<IClientConnectionFactory> connection_factory,
+      std::unique_ptr<TimerList> timer_list)
       : rpc_registry_(std::move(rpc_registry)),
         connection_factory_(std::move(connection_factory)),
+        timer_list_(std::move(timer_list)),
         port_(port) {
-          events_.reserve(max_events_);
-        };
+    events_.reserve(max_events_);
+  };
 
   ConnectionManager(const ConnectionManager&) = delete;
   ConnectionManager& operator=(const ConnectionManager&) = delete;
@@ -39,6 +43,8 @@ class ConnectionManager {
   absl::Status LoopForever();
 
   absl::Status LoopOnce(int time_out);
+
+  void CloseExpiredConnections(absl::Time threshold_time);
 
   void Stop();
 
@@ -62,6 +68,8 @@ class ConnectionManager {
       active_connections_;
   std::shared_ptr<const rpc::IRpcRegistry> rpc_registry_;
   std::unique_ptr<IClientConnectionFactory> connection_factory_;
+  std::unique_ptr<TimerList> timer_list_;
+  const absl::Duration timeout_check_frequency_ = absl::Seconds(1);
   std::atomic<bool> is_running_;
   int port_;
   int listen_fd_ = -1;

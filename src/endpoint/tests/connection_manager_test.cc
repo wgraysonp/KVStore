@@ -41,7 +41,7 @@ class ConnectionManagerTest : public ::testing::Test {
     auto mock_registry = std::make_shared<rpc::MockRpcRegistry>();
 
     std::unique_ptr<TimerList> temp_timer_list =
-        std::make_unique<TimerList>(absl::Seconds(30));
+        std::make_unique<TimerList>(absl::Seconds(3));
     timer_list_ = temp_timer_list.get();
 
     connection_manager_ = std::make_unique<ConnectionManager>(
@@ -336,5 +336,69 @@ TEST_F(ConnectionManagerTest,
 
   // the connection should be deleted now.
   EXPECT_EQ(connections_map_post_close.size(), (std::size_t)0);
+}
+
+TEST_F(ConnectionManagerTest,
+       ConnectionManagerCorrectlyDeletesTimedOutConnections) {
+  ABSL_ASSERT_OK(connection_manager_->BindAndListen());
+  ClientConnect();
+
+  // loop once to accept the connection
+  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
+  ASSERT_EQ(sleep(3), (unsigned int)0);
+
+  ClientConnect();
+  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
+
+  connection_manager_->CloseExpiredConnections(absl::Now());
+
+  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+      connections_map = connection_manager_->GetActiveConnections();
+
+  // timeout is set to 3 seconds so first connection should have been deleted,
+  // but not the second
+  EXPECT_EQ(connections_map.size(), (std::size_t)1);
+}
+
+TEST_F(ConnectionManagerTest, ConnectionManagerRefreshesConnectionTimer) {
+  ABSL_ASSERT_OK(connection_manager_->BindAndListen());
+  int client_fd = ClientConnect();
+
+  std::unique_ptr<MockClientConnection> mock_connection_to_return =
+      std::make_unique<MockClientConnection>();
+  MockClientConnection* mock_connection = mock_connection_to_return.get();
+
+  EXPECT_CALL(*mock_factory_,
+              CreateClientConnection(::testing::_, ::testing::_))
+      .Times(1)
+      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
+
+  // loop once to accept the connection
+  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
+  ASSERT_EQ(sleep(2), (unsigned int)0);
+
+  // send some arbitrary data to trigger an epoll event
+  // connection manager should refresh the timeout deadline for client_fd
+  std::string header = "header";
+  ASSERT_THAT(send(client_fd, header.data(), header.size(), 0),
+              ::testing::Eq(header.size()));
+
+  // Handle event returns CONNECTED_READ to simulate that the
+  // transaction is not complete
+  EXPECT_CALL(*mock_connection, HandleEvent())
+      .Times(1)
+      .WillOnce(::testing::Return(ConnectionStatus::CONNECTED_READ));
+
+  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
+  ASSERT_EQ(sleep(2), (unsigned int)0);
+
+  // it has now been at least four seconds since connection. The client should
+  // not be evicted though because it has only been two seconds since last
+  // activity
+  connection_manager_->CloseExpiredConnections(absl::Now());
+
+  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+      connections_map = connection_manager_->GetActiveConnections();
+  EXPECT_EQ(connections_map.size(), (std::size_t)1);
 }
 }  // namespace endpoint

@@ -48,6 +48,7 @@ class ClientConnection : public IClientConnection {
 
   absl::Status MakeNonBlocking() override;
   absl::StatusOr<ConnectionStatus> HandleEvent() override;
+  void SetWriteBuffer(std::string response_bytes);
   void WriteTimeOutMessageToClient() override;
 
   ConnectionStatus GetConnectionStatus() const { return connection_status_; }

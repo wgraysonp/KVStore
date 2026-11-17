@@ -22,6 +22,7 @@ cc_library(
         "//src/common:consts",
         "//src/common/utils:socket_utils",
         "//src/rpc_framework",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",

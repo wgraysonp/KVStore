@@ -308,7 +308,7 @@ TEST_F(ClientConnectionTest, ClientConnectionDisconnectsIfRPCFails) {
   ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
   ASSERT_EQ(send(local_fd_, payload.data(), payload.size(), 0), 15);
 
-  EXPECT_CALL(*mock_registry_, DispatchRequest(::testing::_))
+  EXPECT_CALL(*mock_registry_, DispatchRequest(::testing::_, ::testing::_))
       .Times(1)
       .WillOnce(Return(absl::InvalidArgumentError("Bad rpc request data")));
 

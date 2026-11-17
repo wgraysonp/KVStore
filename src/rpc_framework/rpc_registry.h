@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -17,8 +18,9 @@ class IRpcRegistry {
   virtual ~IRpcRegistry() = default;
   virtual void RegisterRpc(
       uint32_t rpc_id, std::unique_ptr<IHandlerFactory> handler_factory) = 0;
-  virtual absl::StatusOr<std::string> DispatchRequest(
-      RawMessage&& raw_request) const = 0;
+  virtual absl::Status DispatchRequest(
+      RawMessage&& raw_request,
+      absl::AnyInvocable<void(std::string)> on_complete) const = 0;
 };
 
 class RpcRegistry : public IRpcRegistry {
@@ -33,8 +35,9 @@ class RpcRegistry : public IRpcRegistry {
   void RegisterRpc(uint32_t rpc_id,
                    std::unique_ptr<IHandlerFactory> handler_factory) override;
 
-  absl::StatusOr<std::string> DispatchRequest(
-      RawMessage&& raw_request) const override;
+  absl::Status DispatchRequest(
+      RawMessage&& raw_request,
+      absl::AnyInvocable<void(std::string)> on_complete) const override;
 
   const absl::flat_hash_map<uint32_t, std::unique_ptr<IHandlerFactory>>&
   GetRegisteredRpcMap() const {

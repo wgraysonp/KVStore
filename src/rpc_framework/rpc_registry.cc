@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -15,19 +16,19 @@ void RpcRegistry::RegisterRpc(
   handler_factories_[rpc_id] = std::move(handler_factory);
 }
 
-absl::StatusOr<std::string> RpcRegistry::DispatchRequest(
-    RawMessage&& raw_request) const {
+absl::Status RpcRegistry::DispatchRequest(
+    RawMessage&& raw_request,
+    absl::AnyInvocable<void(std::string)> on_complete) const {
   auto it = handler_factories_.find(raw_request.rpc_id);
   if (it == handler_factories_.end()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("No registered RPC with id %d", raw_request.rpc_id));
   }
   std::unique_ptr<IHandler> rpc_handler =
-      it->second->CreateHandler(std::move(raw_request));
+      it->second->CreateHandler(std::move(raw_request), std::move(on_complete));
 
-  ABSL_ASSIGN_OR_RETURN(std::string response_bytes,
-                        rpc_handler->HandleRequest());
+  ABSL_RETURN_IF_ERROR(rpc_handler->HandleRequest());
 
-  return response_bytes;
+  return absl::OkStatus();
 }
 }  // namespace rpc

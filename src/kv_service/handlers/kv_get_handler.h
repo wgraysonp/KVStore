@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "src/common/consts.h"
@@ -37,10 +38,13 @@ class KVGetResponse : public rpc::Response {
   std::string value_;
 };
 
-class KVGetHandler : public rpc::Handler<KVGetRequest, KVGetResponse> {
+class KVGetHandler : public rpc::SyncHandler<KVGetRequest, KVGetResponse> {
  public:
-  KVGetHandler(rpc::RawMessage&& raw_message, std::shared_ptr<KVStore> kv_store)
-      : rpc::Handler<KVGetRequest, KVGetResponse>(std::move(raw_message)),
+  KVGetHandler(rpc::RawMessage&& raw_message,
+               absl::AnyInvocable<void(std::string)> on_complete,
+               std::shared_ptr<KVStore> kv_store)
+      : rpc::SyncHandler<KVGetRequest, KVGetResponse>(std::move(raw_message),
+                                                      std::move(on_complete)),
         kv_store_(std::move(kv_store)) {};
 
  protected:
@@ -56,8 +60,10 @@ class KVGetHandlerFactory : public rpc::IHandlerFactory {
   KVGetHandlerFactory(std::shared_ptr<KVStore> kv_store)
       : kv_store_(std::move(kv_store)) {};
   std::unique_ptr<rpc::IHandler> CreateHandler(
-      rpc::RawMessage&& raw_message) override {
-    return std::make_unique<KVGetHandler>(std::move(raw_message), kv_store_);
+      rpc::RawMessage&& raw_message,
+      absl::AnyInvocable<void(std::string)> on_complete) override {
+    return std::make_unique<KVGetHandler>(std::move(raw_message),
+                                          std::move(on_complete), kv_store_);
   }
 
  private:

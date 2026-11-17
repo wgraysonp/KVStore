@@ -5,9 +5,9 @@
 #include <memory>
 #include <utility>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "src/rpc_framework/data.h"
 
 namespace rpc {
@@ -31,38 +31,73 @@ class Response {
 class IHandler {
  public:
   virtual ~IHandler() = default;
-  virtual absl::StatusOr<std::string> HandleRequest() = 0;
-
- protected:
-  virtual absl::Status RunSync() = 0;
+  virtual absl::Status HandleRequest() = 0;
 };
 
 template <std::derived_from<Request> RequestType,
           std::derived_from<Response> ResponseType>
-class Handler : public IHandler {
+class SyncHandler : public IHandler {
  public:
-  Handler(RawMessage&& raw_message) : request_(std::move(raw_message)) {};
-  Handler& operator=(const Handler&) = delete;
-  Handler(const Handler&) = delete;
-  Handler& operator=(Handler&&) = delete;
-  Handler(Handler&&) = delete;
+  SyncHandler(RawMessage&& raw_message,
+              absl::AnyInvocable<void(std::string)> on_complete)
+      : request_(std::move(raw_message)),
+        on_complete_(std::move(on_complete)) {};
+  SyncHandler& operator=(const SyncHandler&) = delete;
+  SyncHandler(const SyncHandler&) = delete;
+  SyncHandler& operator=(SyncHandler&&) = delete;
+  SyncHandler(SyncHandler&&) = delete;
 
-  absl::StatusOr<std::string> HandleRequest() override {
+  absl::Status HandleRequest() override {
     ABSL_RETURN_IF_ERROR(request_.DeSerialize());
     ABSL_RETURN_IF_ERROR(RunSync());
     ABSL_ASSIGN_OR_RETURN(std::string response_bytes, response_.Serialize());
-    return response_bytes;
+    on_complete_(std::move(response_bytes));
+    return absl::OkStatus();
   }
 
  protected:
+  virtual absl::Status RunSync() = 0;
+
   RequestType request_;
   ResponseType response_;
+  absl::AnyInvocable<void(std::string)> on_complete_;
+};
+
+template <std::derived_from<Request> RequestType,
+          std::derived_from<Response> ResponseType>
+class AsyncHandler : public IHandler {
+ public:
+  AsyncHandler(RawMessage&& raw_message,
+               absl::AnyInvocable<void(std::string)> on_complete)
+      : request_(std::move(raw_message)),
+        on_complete_(std::move(on_complete)) {};
+  AsyncHandler& operator=(const AsyncHandler&) = delete;
+  AsyncHandler(const AsyncHandler&) = delete;
+  AsyncHandler& operator=(AsyncHandler&&) = delete;
+  AsyncHandler(AsyncHandler&&) = delete;
+
+  absl::Status HandleRequest() override {
+    ABSL_RETURN_IF_ERROR(request_.DeSerialize());
+    ABSL_RETURN_IF_ERROR(InitiateAsync());
+    return absl::OkStatus();
+  }
+
+  virtual absl::Status FinishAsync() = 0;
+
+ protected:
+  virtual absl::Status InitiateAsync() = 0;
+
+  RequestType request_;
+  ResponseType response_;
+  absl::AnyInvocable<void(std::string)> on_complete_;
 };
 
 class IHandlerFactory {
  public:
   virtual ~IHandlerFactory() = default;
-  virtual std::unique_ptr<IHandler> CreateHandler(RawMessage&& raw_message) = 0;
+  virtual std::unique_ptr<IHandler> CreateHandler(
+      RawMessage&& raw_message,
+      absl::AnyInvocable<void(std::string)> on_complete) = 0;
 };
 
 }  // namespace rpc

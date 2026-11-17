@@ -7,6 +7,7 @@
 #include <cstring>
 #include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -56,6 +57,14 @@ void ClientConnection::WriteTimeOutMessageToClient() {
   HandleError(absl::DeadlineExceededError("Connection Timed Out"));
 }
 
+void ClientConnection::SetWriteBuffer(std::string response_bytes) {
+  response_buffer_ = std::move(response_bytes);
+
+  // store the size of the response in network byte order
+  response_header_buffer_ =
+      common::ConvertUint32ToNetworkBytes(response_buffer_.size());
+}
+
 ConnectionStatus ClientConnection::ProcessReadStage() {
   absl::StatusOr<common::ReadState> read_status = PerformClientRead();
   if (!read_status.ok()) {
@@ -90,18 +99,17 @@ ConnectionStatus ClientConnection::ProcessDispatchStage() {
 
   rpc::RawMessage msg = std::move(move_client_data_status).value();
 
-  absl::StatusOr<std::string> dispatch_request_status =
-      rpc_registry_->DispatchRequest(std::move(msg));
+  absl::AnyInvocable<void(std::string)> on_complete =
+      [this](std::string response_bytes) {
+        this->SetWriteBuffer(std::move(response_bytes));
+      };
+
+  absl::Status dispatch_request_status =
+      rpc_registry_->DispatchRequest(std::move(msg), std::move(on_complete));
   if (!dispatch_request_status.ok()) {
-    HandleDisconnectOnError(dispatch_request_status.status());
+    HandleDisconnectOnError(dispatch_request_status);
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
-  response_buffer_ = std::move(dispatch_request_status).value();
-
-  // store the size of the response in network byte order
-  response_header_buffer_ =
-      common::ConvertUint32ToNetworkBytes(response_buffer_.size());
-
   return ConnectionStatus::CONNECTED_WRITE;
 }
 

@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -38,10 +39,13 @@ class KVPutResponse : public rpc::Response {
   std::string value_ = "OK";
 };
 
-class KVPutHandler : public rpc::Handler<KVPutRequest, KVPutResponse> {
+class KVPutHandler : public rpc::SyncHandler<KVPutRequest, KVPutResponse> {
  public:
-  KVPutHandler(rpc::RawMessage&& raw_message, std::shared_ptr<KVStore> kv_store)
-      : rpc::Handler<KVPutRequest, KVPutResponse>(std::move(raw_message)),
+  KVPutHandler(rpc::RawMessage&& raw_message,
+               absl::AnyInvocable<void(std::string)> on_complete,
+               std::shared_ptr<KVStore> kv_store)
+      : rpc::SyncHandler<KVPutRequest, KVPutResponse>(std::move(raw_message),
+                                                      std::move(on_complete)),
         kv_store_(std::move(kv_store)) {};
 
  protected:
@@ -57,8 +61,10 @@ class KVPutHandlerFactory : public rpc::IHandlerFactory {
   KVPutHandlerFactory(std::shared_ptr<KVStore> kv_store)
       : kv_store_(std::move(kv_store)) {};
   std::unique_ptr<rpc::IHandler> CreateHandler(
-      rpc::RawMessage&& raw_message) override {
-    return std::make_unique<KVPutHandler>(std::move(raw_message), kv_store_);
+      rpc::RawMessage&& raw_message,
+      absl::AnyInvocable<void(std::string)> on_complete) override {
+    return std::make_unique<KVPutHandler>(std::move(raw_message),
+                                          std::move(on_complete), kv_store_);
   }
 
  private:

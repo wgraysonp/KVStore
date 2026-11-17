@@ -12,9 +12,9 @@ cc_library(
     visibility = ["//src/rpc_framework/tests:__pkg__"],
     deps = [
         "//src/rpc_framework:data",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
-        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -29,9 +29,9 @@ cc_library(
         "//src/rpc_framework:data",
         "//src/rpc_framework:rpc_interface",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
-        "@abseil-cpp//absl/status:statusor",
     ],
 )
 

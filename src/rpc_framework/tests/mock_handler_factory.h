@@ -5,9 +5,10 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/rpc_interface.h"
@@ -17,18 +18,21 @@ namespace rpc {
 class MockHandlerFactory : public IHandlerFactory {
  public:
   MockHandlerFactory() {
-    ON_CALL(*this, CreateHandler(::testing::_))
-        .WillByDefault([](RawMessage&& raw_message) {
+    ON_CALL(*this, CreateHandler(::testing::_, ::testing::_))
+        .WillByDefault([](RawMessage&& raw_message,
+                          absl::AnyInvocable<void(std::string)> on_complete) {
           auto mock_handler =
               std::make_unique<::testing::NiceMock<MockHandler>>(
-                  std::move(raw_message));
+                  std::move(raw_message), std::move(on_complete));
           return mock_handler;
         });
   };
   ~MockHandlerFactory() override = default;
 
   MOCK_METHOD((std::unique_ptr<IHandler>), CreateHandler,
-              (RawMessage&& raw_message), (override));
+              (RawMessage && raw_message,
+               absl::AnyInvocable<void(std::string)> on_complete),
+              (override));
 };
 }  // namespace rpc
 

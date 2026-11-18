@@ -88,16 +88,16 @@ class ClientConnection : public IClientConnection {
 class IClientConnectionFactory {
  public:
   virtual ~IClientConnectionFactory() = default;
-  virtual std::unique_ptr<IClientConnection> CreateClientConnection(
+  virtual std::shared_ptr<IClientConnection> CreateClientConnection(
       int client_fd, std::shared_ptr<const rpc::IRpcRegistry> rpc_registry) = 0;
 };
 
 class ClientConnectionFactory : public IClientConnectionFactory {
  public:
-  std::unique_ptr<IClientConnection> CreateClientConnection(
+  std::shared_ptr<IClientConnection> CreateClientConnection(
       int client_fd,
       std::shared_ptr<const rpc::IRpcRegistry> rpc_registry) override {
-    return std::make_unique<ClientConnection>(client_fd,
+    return std::make_shared<ClientConnection>(client_fd,
                                                std::move(rpc_registry));
   }
 };

@@ -202,7 +202,7 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
                  << " not found in active connections map";
     return absl::OkStatus();
   } else {
-    const std::unique_ptr<IClientConnection>& connection = it->second;
+    const std::shared_ptr<IClientConnection>& connection = it->second;
     connection_status = connection->HandleEvent();
   }
 

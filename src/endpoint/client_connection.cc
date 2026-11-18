@@ -99,10 +99,16 @@ ConnectionStatus ClientConnection::ProcessDispatchStage() {
 
   rpc::RawMessage msg = std::move(move_client_data_status).value();
 
+  // TODO: figure out how to handle the disconnect if this callback if there is
+  // an error in the callback. If everything is single threaded, and connection_status_
+  // is set after HandleRequest returns, that may work. But if it happens synchronously
+  // it will be overwritten when ProcessDispatchState() returns.
+  //
+  // ANSWER: have the connection manager construct the ClientConnection with 
+  // and callback that deletes it from the hashmap
   absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete =
       [this](absl::StatusOr<std::string> response) {
         if(!response.status().ok()){
-          connection_status_ = ConnectionStatus::DISCONNECTED_ERROR;
           HandleDisconnectOnError(response.status());
           return;
         }

@@ -79,7 +79,7 @@ TEST_F(ConnectionManagerTest, ConnectionManagerAcceptsSingleClient) {
   int client_fd = ClientConnect();
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map = connection_manager_->GetActiveConnections();
 
   EXPECT_EQ(connections_map.size(), (std::size_t)1);
@@ -102,7 +102,7 @@ TEST_F(ConnectionManagerTest,
       .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_pre_event = connection_manager_->GetActiveConnections();
 
   ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
@@ -118,7 +118,7 @@ TEST_F(ConnectionManagerTest,
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_disconnect =
           connection_manager_->GetActiveConnections();
 
@@ -142,7 +142,7 @@ TEST_F(ConnectionManagerTest,
       .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_pre_event = connection_manager_->GetActiveConnections();
 
   ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
@@ -158,7 +158,7 @@ TEST_F(ConnectionManagerTest,
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_disconnect =
           connection_manager_->GetActiveConnections();
 
@@ -182,7 +182,7 @@ TEST_F(ConnectionManagerTest,
       .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_pre_event = connection_manager_->GetActiveConnections();
 
   ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
@@ -199,7 +199,7 @@ TEST_F(ConnectionManagerTest,
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_disconnect =
           connection_manager_->GetActiveConnections();
 
@@ -223,7 +223,7 @@ TEST_F(ConnectionManagerTest, LoopOnceDoesNotFailIfClientConnectionNotFound) {
       .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map = connection_manager_->GetActiveConnections();
 
   EXPECT_EQ(connections_map.size(), (std::size_t)1);
@@ -243,7 +243,7 @@ TEST_F(ConnectionManagerTest, LoopOnceDoesNotFailIfClientConnectionNotFound) {
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_disconnect =
           connection_manager_->GetActiveConnections();
 
@@ -274,7 +274,7 @@ TEST_F(ConnectionManagerTest,
       .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_pre_event = connection_manager_->GetActiveConnections();
 
   ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
@@ -294,7 +294,7 @@ TEST_F(ConnectionManagerTest,
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_header_read =
           connection_manager_->GetActiveConnections();
 
@@ -313,7 +313,7 @@ TEST_F(ConnectionManagerTest,
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_payload_read =
           connection_manager_->GetActiveConnections();
 
@@ -331,7 +331,7 @@ TEST_F(ConnectionManagerTest,
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map_post_close = connection_manager_->GetActiveConnections();
 
   // the connection should be deleted now.
@@ -352,7 +352,7 @@ TEST_F(ConnectionManagerTest,
 
   connection_manager_->CloseExpiredConnections(absl::Now());
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map = connection_manager_->GetActiveConnections();
 
   // timeout is set to 3 seconds so first connection should have been deleted,
@@ -397,7 +397,7 @@ TEST_F(ConnectionManagerTest, ConnectionManagerRefreshesConnectionTimer) {
   // activity
   connection_manager_->CloseExpiredConnections(absl::Now());
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
       connections_map = connection_manager_->GetActiveConnections();
   EXPECT_EQ(connections_map.size(), (std::size_t)1);
 }

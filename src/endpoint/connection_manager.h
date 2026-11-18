@@ -48,7 +48,7 @@ class ConnectionManager {
 
   void Stop();
 
-  const absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>&
+  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
   GetActiveConnections() const {
     return active_connections_;
   }
@@ -64,7 +64,7 @@ class ConnectionManager {
   absl::Status HandleExistingClientEvent(const epoll_event& ev);
 
   std::vector<epoll_event> events_;
-  absl::flat_hash_map<int, std::unique_ptr<IClientConnection>>
+  absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>
       active_connections_;
   std::shared_ptr<const rpc::IRpcRegistry> rpc_registry_;
   std::unique_ptr<IClientConnectionFactory> connection_factory_;

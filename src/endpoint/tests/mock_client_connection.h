@@ -30,12 +30,12 @@ class MockClientConnectionFactory : public IClientConnectionFactory {
   MockClientConnectionFactory() {
     ON_CALL(*this, CreateClientConnection(::testing::_, ::testing::_))
         .WillByDefault([]() {
-          auto mock_connection = std::make_unique<MockClientConnection>();
+          auto mock_connection = std::make_shared<MockClientConnection>();
           return mock_connection;
         });
   }
 
-  MOCK_METHOD((std::unique_ptr<IClientConnection>), CreateClientConnection,
+  MOCK_METHOD((std::shared_ptr<IClientConnection>), CreateClientConnection,
               (int client_fd,
                std::shared_ptr<const rpc::IRpcRegistry> rpc_registry),
               (override));

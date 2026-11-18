@@ -99,9 +99,14 @@ ConnectionStatus ClientConnection::ProcessDispatchStage() {
 
   rpc::RawMessage msg = std::move(move_client_data_status).value();
 
-  absl::AnyInvocable<void(std::string)> on_complete =
-      [this](std::string response_bytes) {
-        this->SetWriteBuffer(std::move(response_bytes));
+  absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete =
+      [this](absl::StatusOr<std::string> response) {
+        if(!response.status().ok()){
+          connection_status_ = ConnectionStatus::DISCONNECTED_ERROR;
+          HandleDisconnectOnError(response.status());
+          return;
+        }
+        SetWriteBuffer(std::move(response).value());
       };
 
   absl::Status dispatch_request_status =

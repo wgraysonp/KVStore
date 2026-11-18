@@ -9,6 +9,7 @@
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/rpc_interface.h"
@@ -20,7 +21,8 @@ class MockHandlerFactory : public IHandlerFactory {
   MockHandlerFactory() {
     ON_CALL(*this, CreateHandler(::testing::_, ::testing::_))
         .WillByDefault([](RawMessage&& raw_message,
-                          absl::AnyInvocable<void(std::string)> on_complete) {
+                          absl::AnyInvocable<void(absl::StatusOr<std::string>)>
+                              on_complete) {
           auto mock_handler =
               std::make_unique<::testing::NiceMock<MockHandler>>(
                   std::move(raw_message), std::move(on_complete));
@@ -29,10 +31,11 @@ class MockHandlerFactory : public IHandlerFactory {
   };
   ~MockHandlerFactory() override = default;
 
-  MOCK_METHOD((std::unique_ptr<IHandler>), CreateHandler,
-              (RawMessage && raw_message,
-               absl::AnyInvocable<void(std::string)> on_complete),
-              (override));
+  MOCK_METHOD(
+      (std::unique_ptr<IHandler>), CreateHandler,
+      (RawMessage && raw_message,
+       absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete),
+      (override));
 };
 }  // namespace rpc
 

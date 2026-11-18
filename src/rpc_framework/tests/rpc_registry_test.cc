@@ -11,6 +11,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "src/rpc_framework/data.h"
 #include "src/rpc_framework/tests/mock_handler.h"
 #include "src/rpc_framework/tests/mock_handler_factory.h"
@@ -51,8 +52,8 @@ TEST_F(RpcRegistryTest, RpcRegistryDispatchReturnsErrorForNonExistentRpc) {
       .request_payload = "hello",
   };
 
-  absl::AnyInvocable<void(std::string)> on_complete =
-      [](std::string response_bytes) { return; };
+  absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete =
+      [](absl::StatusOr<std::string> response_bytes) { return; };
 
   absl::Status response_status =
       registry_->DispatchRequest(std::move(msg), std::move(on_complete));
@@ -73,8 +74,8 @@ TEST_F(RpcRegistryTest, RpcRegistryDispatchSuccessfullyDispatchesValidRequest) {
       .request_payload = "Grayson",
   };
 
-  absl::AnyInvocable<void(std::string)> on_complete =
-      [](std::string response_bytes) { return; };
+  absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete =
+      [](absl::StatusOr<std::string> response_bytes) { return; };
 
   absl::Status response_status =
       registry_->DispatchRequest(std::move(msg), std::move(on_complete));
@@ -93,8 +94,8 @@ TEST_F(RpcRegistryTest, RpcRegistryDispatchReturnsErrorOnRpcFailure) {
       .request_payload = "Grayson",
   };
 
-  absl::AnyInvocable<void(std::string)> on_complete =
-      [](std::string response_bytes) { return; };
+  absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete =
+      [](absl::StatusOr<std::string> response_bytes) { return; };
 
   // have the factory return a mock handler passing "true" to the constructor
   // this will make the mock handler return an internal error when

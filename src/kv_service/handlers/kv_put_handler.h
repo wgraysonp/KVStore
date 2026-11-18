@@ -41,9 +41,10 @@ class KVPutResponse : public rpc::Response {
 
 class KVPutHandler : public rpc::SyncHandler<KVPutRequest, KVPutResponse> {
  public:
-  KVPutHandler(rpc::RawMessage&& raw_message,
-               absl::AnyInvocable<void(std::string)> on_complete,
-               std::shared_ptr<KVStore> kv_store)
+  KVPutHandler(
+      rpc::RawMessage&& raw_message,
+      absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete,
+      std::shared_ptr<KVStore> kv_store)
       : rpc::SyncHandler<KVPutRequest, KVPutResponse>(std::move(raw_message),
                                                       std::move(on_complete)),
         kv_store_(std::move(kv_store)) {};
@@ -62,7 +63,8 @@ class KVPutHandlerFactory : public rpc::IHandlerFactory {
       : kv_store_(std::move(kv_store)) {};
   std::unique_ptr<rpc::IHandler> CreateHandler(
       rpc::RawMessage&& raw_message,
-      absl::AnyInvocable<void(std::string)> on_complete) override {
+      absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete)
+      override {
     return std::make_unique<KVPutHandler>(std::move(raw_message),
                                           std::move(on_complete), kv_store_);
   }

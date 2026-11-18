@@ -18,7 +18,7 @@ void RpcRegistry::RegisterRpc(
 
 absl::Status RpcRegistry::DispatchRequest(
     RawMessage&& raw_request,
-    absl::AnyInvocable<void(std::string)> on_complete) const {
+    absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete) const {
   auto it = handler_factories_.find(raw_request.rpc_id);
   if (it == handler_factories_.end()) {
     return absl::InvalidArgumentError(

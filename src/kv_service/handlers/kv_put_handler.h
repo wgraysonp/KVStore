@@ -61,11 +61,11 @@ class KVPutHandlerFactory : public rpc::IHandlerFactory {
  public:
   KVPutHandlerFactory(std::shared_ptr<KVStore> kv_store)
       : kv_store_(std::move(kv_store)) {};
-  std::unique_ptr<rpc::IHandler> CreateHandler(
+  std::shared_ptr<rpc::IHandler> CreateHandler(
       rpc::RawMessage&& raw_message,
       absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete)
       override {
-    return std::make_unique<KVPutHandler>(std::move(raw_message),
+    return std::make_shared<KVPutHandler>(std::move(raw_message),
                                           std::move(on_complete), kv_store_);
   }
 

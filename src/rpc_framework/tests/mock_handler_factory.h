@@ -32,7 +32,7 @@ class MockHandlerFactory : public IHandlerFactory {
   ~MockHandlerFactory() override = default;
 
   MOCK_METHOD(
-      (std::unique_ptr<IHandler>), CreateHandler,
+      (std::shared_ptr<IHandler>), CreateHandler,
       (RawMessage && raw_message,
        absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete),
       (override));

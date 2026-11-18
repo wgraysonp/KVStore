@@ -24,7 +24,7 @@ absl::Status RpcRegistry::DispatchRequest(
     return absl::InvalidArgumentError(
         absl::StrFormat("No registered RPC with id %d", raw_request.rpc_id));
   }
-  std::unique_ptr<IHandler> rpc_handler =
+  std::shared_ptr<IHandler> rpc_handler =
       it->second->CreateHandler(std::move(raw_request), std::move(on_complete));
 
   ABSL_RETURN_IF_ERROR(rpc_handler->HandleRequest());

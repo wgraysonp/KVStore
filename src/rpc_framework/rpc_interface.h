@@ -108,7 +108,7 @@ class AsyncHandler : public IHandler {
 class IHandlerFactory {
  public:
   virtual ~IHandlerFactory() = default;
-  virtual std::unique_ptr<IHandler> CreateHandler(
+  virtual std::shared_ptr<IHandler> CreateHandler(
       RawMessage&& raw_message,
       absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete) = 0;
 };

@@ -28,7 +28,8 @@ class ClientConnectionTest : public ::testing::Test {
   int local_fd_ = -1;
   int remote_fd_ = -1;
   std::shared_ptr<NiceMock<rpc::MockRpcRegistry>> mock_registry_;
-  std::unique_ptr<ClientConnection> client_connection_;
+  std::shared_ptr<ClientConnection> client_connection_;
+  ::testing::MockFunction<void()> mock_disconnect_callback_;
 
   void SetUp() override {
     int sv[2];
@@ -37,8 +38,8 @@ class ClientConnectionTest : public ::testing::Test {
     local_fd_ = sv[0];
     remote_fd_ = sv[1];
     mock_registry_ = std::make_shared<NiceMock<rpc::MockRpcRegistry>>();
-    client_connection_ =
-        std::make_unique<ClientConnection>(remote_fd_, mock_registry_);
+    client_connection_ = std::make_shared<ClientConnection>(
+        remote_fd_, mock_registry_, mock_disconnect_callback_.AsStdFunction());
   }
 
   void TearDown() override {
@@ -48,7 +49,10 @@ class ClientConnectionTest : public ::testing::Test {
 };
 
 TEST_F(ClientConnectionTest, MakeNonBlockingCorrectlySetsNonBlockingFlag) {
-  ABSL_EXPECT_OK(client_connection_->MakeNonBlocking());
+  client_connection_->MakeNonBlocking();
+
+  ASSERT_TRUE(client_connection_->IsConnected());
+
   int flags = fcntl(remote_fd_, F_GETFL, 0);
 
   ASSERT_GE(flags, 0);
@@ -70,13 +74,11 @@ TEST_F(ClientConnectionTest, HandleEventSuccessfullyHandlesFullEventCycle) {
   ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
   ASSERT_EQ(send(local_fd_, payload.data(), payload.size(), 0), 7);
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
-
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
+  client_connection_->HandleEvent();
 
   // we should still be connected and ready to read
-  EXPECT_EQ(status.value(), ConnectionStatus::CONNECTED_READ);
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::CONNECTED_READ);
 
   // the mock rpc registry should return this to client_connection_, which
   // shoud attempt to send it to the client
@@ -102,11 +104,12 @@ TEST_F(ClientConnectionTest, HandleEventSuccessfullyHandlesFullEventCycle) {
   close(local_fd_);
   local_fd_ = -1;
 
-  status = client_connection_->HandleEvent();
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
 
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
+  client_connection_->HandleEvent();
+
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_SUCCESS);
 }
 
 TEST_F(ClientConnectionTest,
@@ -114,7 +117,9 @@ TEST_F(ClientConnectionTest,
   // here we mimic the case that the client sends the full payload "Grayson",
   // but the read is interupted by EAGAIN.
 
-  ABSL_ASSERT_OK(client_connection_->MakeNonBlocking());
+  client_connection_->MakeNonBlocking();
+
+  ASSERT_TRUE(client_connection_->IsConnected());
 
   std::string half_payload = "Gray";
 
@@ -131,13 +136,11 @@ TEST_F(ClientConnectionTest,
   ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
   ASSERT_EQ(send(local_fd_, half_payload.data(), half_payload.size(), 0), 4);
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
-
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
+  client_connection_->HandleEvent();
 
   // we should still be connected and ready to read
-  EXPECT_EQ(status.value(), ConnectionStatus::CONNECTED_READ);
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::CONNECTED_READ);
 
   // send the remaining portion of the payload to mimic remaining packets
   // arriving after EAGAIN
@@ -146,11 +149,9 @@ TEST_F(ClientConnectionTest,
                  second_half_payload.size(), 0),
             3);
 
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
   // handle the new event
-  status = client_connection_->HandleEvent();
-
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
+  client_connection_->HandleEvent();
 
   // the mock rpc registry should return this to client_connection_, which
   // shoud attempt to send it to the client
@@ -176,11 +177,9 @@ TEST_F(ClientConnectionTest,
   close(local_fd_);
   local_fd_ = -1;
 
-  status = client_connection_->HandleEvent();
-
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
+  client_connection_->HandleEvent();
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_SUCCESS);
 }
 
 TEST_F(ClientConnectionTest,
@@ -193,14 +192,17 @@ TEST_F(ClientConnectionTest,
   close(local_fd_);
   local_fd_ = -1;
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+  // the disconnect callback should be called
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
+
+  client_connection_->HandleEvent();
 
   // check that the test worked as intended and errno was set to ECONNRESET
   ASSERT_EQ(errno, ECONNRESET);
 
-  ABSL_EXPECT_OK(status);
-
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_ERROR);
+  EXPECT_FALSE(client_connection_->IsConnected());
 }
 
 TEST_F(ClientConnectionTest,
@@ -219,8 +221,9 @@ TEST_F(ClientConnectionTest,
   ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
   ASSERT_EQ(send(local_fd_, &rpc_id_header, 4, 0), 4);
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
-  ABSL_ASSERT_OK(status);
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
+  client_connection_->HandleEvent();
+  EXPECT_FALSE(client_connection_->IsConnected());
 
   std::string expected_response =
       "INVALID_ARGUMENT: Requested payload is too large";
@@ -250,14 +253,14 @@ TEST_F(
   close(local_fd_);
   local_fd_ = -1;
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
-  ABSL_ASSERT_OK(status);
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
+  client_connection_->HandleEvent();
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_SUCCESS);
 }
 
-TEST_F(
-    ClientConnectionTest,
-    HandleEventReturnsDisconnectErrorWhenClientClosesAfterSendingSizeHeader) {
+TEST_F(ClientConnectionTest,
+       ConnectionDisconnectsWhenClientClosesAfterSendingSizeHeader) {
   uint32_t payload_size = htonl(10);
   char size_header[4];
   std::memcpy(&size_header, &payload_size, 4);
@@ -267,14 +270,15 @@ TEST_F(
   close(local_fd_);
   local_fd_ = -1;
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
+  client_connection_->HandleEvent();
 
-  ABSL_ASSERT_OK(status);
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_ERROR);
 }
 
 TEST_F(ClientConnectionTest,
-       HandleEventReturnsDisconnectErrorWhenClientClosesAfterSendingRPCId) {
+       ConnectionDisconnectsWhenClientClosesAfterSendingRPCId) {
   uint32_t payload_size = htonl(10);
   uint32_t rpc_id = htonl(1);
   char size_header[4];
@@ -288,10 +292,12 @@ TEST_F(ClientConnectionTest,
   close(local_fd_);
   local_fd_ = -1;
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
 
-  ABSL_ASSERT_OK(status);
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+  client_connection_->HandleEvent();
+
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_ERROR);
 }
 
 TEST_F(ClientConnectionTest, ClientConnectionDisconnectsIfRPCFails) {
@@ -312,12 +318,12 @@ TEST_F(ClientConnectionTest, ClientConnectionDisconnectsIfRPCFails) {
       .Times(1)
       .WillOnce(Return(absl::InvalidArgumentError("Bad rpc request data")));
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
 
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
+  client_connection_->HandleEvent();
 
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_ERROR);
 
   std::string expected_response = "INVALID_ARGUMENT: Bad rpc request data";
 
@@ -358,50 +364,11 @@ TEST_F(ClientConnectionTest,
   close(local_fd_);
   local_fd_ = -1;
 
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
+  EXPECT_CALL(mock_disconnect_callback_, Call()).Times(1);
 
-  ABSL_ASSERT_OK(status) << "Expected Ok client connection status but got "
-                         << status.status().ToString();
+  client_connection_->HandleEvent();
 
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
-}
-
-TEST_F(ClientConnectionTest,
-       HandlEventFailsIfConnectionIsDisconnectedSuccessfully) {
-  close(local_fd_);
-  local_fd_ = -1;
-
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
-
-  ABSL_ASSERT_OK(status);
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_SUCCESS);
-
-  absl::StatusOr<ConnectionStatus> status2 = client_connection_->HandleEvent();
-  EXPECT_THAT(status2,
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("ClientConnection is in a disconnected state "
-                                 "and should be deleted.")));
-}
-
-TEST_F(ClientConnectionTest, HandlEventFailsIfConnectionIsDisconnectedinError) {
-  uint32_t payload_size = htonl(10);
-  char size_header[4];
-  std::memcpy(&size_header, &payload_size, 4);
-
-  // send the size header and rpc_id then close the connection early
-  ASSERT_EQ(send(local_fd_, &size_header, 4, 0), 4);
-  close(local_fd_);
-  local_fd_ = -1;
-
-  absl::StatusOr<ConnectionStatus> status = client_connection_->HandleEvent();
-
-  ABSL_ASSERT_OK(status);
-  EXPECT_EQ(status.value(), ConnectionStatus::DISCONNECTED_ERROR);
-
-  // the file descriptor should be closed and invalid at this point
-  absl::StatusOr<ConnectionStatus> status2 = client_connection_->HandleEvent();
-  EXPECT_THAT(status2,
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("Client file descriptor is invalid")));
+  EXPECT_EQ(client_connection_->GetConnectionStatus(),
+            ConnectionStatus::DISCONNECTED_ERROR);
 }
 }  // namespace endpoint

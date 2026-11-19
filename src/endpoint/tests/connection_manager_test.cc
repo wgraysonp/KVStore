@@ -30,7 +30,7 @@ namespace endpoint {
 class ConnectionManagerTest : public ::testing::Test {
  protected:
   NiceMock<MockClientConnectionFactory>* mock_factory_ = nullptr;
-  std::unique_ptr<ConnectionManager> connection_manager_;
+  std::shared_ptr<ConnectionManager> connection_manager_;
   TimerList* timer_list_ = nullptr;
 
   void SetUp() override {
@@ -44,7 +44,7 @@ class ConnectionManagerTest : public ::testing::Test {
         std::make_unique<TimerList>(absl::Seconds(3));
     timer_list_ = temp_timer_list.get();
 
-    connection_manager_ = std::make_unique<ConnectionManager>(
+    connection_manager_ = std::make_shared<ConnectionManager>(
         PORT, std::move(mock_registry), std::move(temp_mock_factory),
         std::move(temp_timer_list));
   }
@@ -88,18 +88,23 @@ TEST_F(ConnectionManagerTest, ConnectionManagerAcceptsSingleClient) {
 }
 
 TEST_F(ConnectionManagerTest,
-       ConnectionManagerDeletesClientConnectionOnSuccessfulDisconnect) {
+       ConnectionManagerDeletesClientConnectionWhenDisconnectCallbackIsRun) {
   ABSL_EXPECT_OK(connection_manager_->BindAndListen());
   int client_fd = ClientConnect();
 
-  std::unique_ptr<MockClientConnection> mock_connection_to_return =
-      std::make_unique<MockClientConnection>();
-  MockClientConnection* mock_connection = mock_connection_to_return.get();
+  std::shared_ptr<MockClientConnection> mock_connection;
 
   EXPECT_CALL(*mock_factory_,
-              CreateClientConnection(::testing::_, ::testing::_))
+              CreateClientConnection(::testing::_, ::testing::_, ::testing::_))
       .Times(1)
-      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
+      .WillOnce([&mock_connection](
+                    int fd,
+                    std::shared_ptr<const rpc::IRpcRegistry> rpc_registry,
+                    DisconnectCallback on_disconnect) {
+        mock_connection =
+            std::make_shared<MockClientConnection>(std::move(on_disconnect));
+        return mock_connection;
+      });
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
   const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
@@ -112,9 +117,10 @@ TEST_F(ConnectionManagerTest,
   ASSERT_THAT(send(client_fd, some_data.data(), some_data.size(), 0),
               ::testing::Eq(some_data.size()));
 
-  EXPECT_CALL(*mock_connection, HandleEvent())
+  EXPECT_CALL(*mock_connection, HandleEvent)
       .Times(1)
-      .WillOnce(::testing::Return(ConnectionStatus::DISCONNECTED_SUCCESS));
+      .WillOnce(
+          [&mock_connection]() { mock_connection->RunDisconnectCallback(); });
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
 
@@ -125,217 +131,6 @@ TEST_F(ConnectionManagerTest,
   EXPECT_EQ(connections_map_post_disconnect.size(), (std::size_t)0);
 
   close(client_fd);
-}
-
-TEST_F(ConnectionManagerTest,
-       ConnectionManagerDeletesClientConnectionOnDisconnectInError) {
-  ABSL_EXPECT_OK(connection_manager_->BindAndListen());
-  int client_fd = ClientConnect();
-
-  std::unique_ptr<MockClientConnection> mock_connection_to_return =
-      std::make_unique<MockClientConnection>();
-  MockClientConnection* mock_connection = mock_connection_to_return.get();
-
-  EXPECT_CALL(*mock_factory_,
-              CreateClientConnection(::testing::_, ::testing::_))
-      .Times(1)
-      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_pre_event = connection_manager_->GetActiveConnections();
-
-  ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
-
-  // send some arbitrary data to trigger an epoll event
-  std::string some_data = "Bad Data";
-  ASSERT_THAT(send(client_fd, some_data.data(), some_data.size(), 0),
-              ::testing::Eq(some_data.size()));
-
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(ConnectionStatus::DISCONNECTED_ERROR));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_post_disconnect =
-          connection_manager_->GetActiveConnections();
-
-  EXPECT_EQ(connections_map_post_disconnect.size(), (std::size_t)0);
-
-  close(client_fd);
-}
-
-TEST_F(ConnectionManagerTest,
-       ConnectionManagerDeletesConnectionIfHandleConnectFails) {
-  ABSL_EXPECT_OK(connection_manager_->BindAndListen());
-  int client_fd = ClientConnect();
-
-  std::unique_ptr<MockClientConnection> mock_connection_to_return =
-      std::make_unique<MockClientConnection>();
-  MockClientConnection* mock_connection = mock_connection_to_return.get();
-
-  EXPECT_CALL(*mock_factory_,
-              CreateClientConnection(::testing::_, ::testing::_))
-      .Times(1)
-      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_pre_event = connection_manager_->GetActiveConnections();
-
-  ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
-
-  // send some arbitrary data to trigger an epoll event
-  std::string some_data = "Data";
-  ASSERT_THAT(send(client_fd, some_data.data(), some_data.size(), 0),
-              ::testing::Eq(some_data.size()));
-
-  // Handle event returns an error for this connection
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(absl::InternalError("Connectoin Corrupted")));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_post_disconnect =
-          connection_manager_->GetActiveConnections();
-
-  EXPECT_EQ(connections_map_post_disconnect.size(), (std::size_t)0);
-
-  close(client_fd);
-}
-
-TEST_F(ConnectionManagerTest, LoopOnceDoesNotFailIfClientConnectionNotFound) {
-  ABSL_ASSERT_OK(connection_manager_->BindAndListen());
-
-  int client_fd = ClientConnect();
-
-  std::unique_ptr<MockClientConnection> mock_connection_to_return =
-      std::make_unique<MockClientConnection>();
-  MockClientConnection* mock_connection = mock_connection_to_return.get();
-
-  EXPECT_CALL(*mock_factory_,
-              CreateClientConnection(::testing::_, ::testing::_))
-      .Times(1)
-      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map = connection_manager_->GetActiveConnections();
-
-  EXPECT_EQ(connections_map.size(), (std::size_t)1);
-
-  // send some arbitrary data to trigger an epoll event
-  std::string some_data = "Data";
-  ASSERT_THAT(send(client_fd, some_data.data(), some_data.size(), 0),
-              ::testing::Eq(some_data.size()));
-
-  // Handle event returns an error for this connection. In this case,
-  // this will cause connection manager to delete the pointer to the mock
-  // connection object. However, the mock connection destructor does not
-  // close the client file descriptor. So we can still trigger epoll events
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(absl::InternalError("Connectoin Corrupted")));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_post_disconnect =
-          connection_manager_->GetActiveConnections();
-
-  EXPECT_EQ(connections_map_post_disconnect.size(), (std::size_t)0);
-
-  // send a FIN packet. this will trigger an epoll event, but the
-  // MockClientConnection object will have been delete already
-  close(client_fd);
-
-  // the connection manager should see that the MockClientCOnnection object
-  // associaeted with the event fd is not found. It will log a warning and
-  // continue
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-}
-
-TEST_F(ConnectionManagerTest,
-       ConnectionManagerMaintainsConnectionUntilDisconnectStatus) {
-  ABSL_EXPECT_OK(connection_manager_->BindAndListen());
-  int client_fd = ClientConnect();
-
-  std::unique_ptr<MockClientConnection> mock_connection_to_return =
-      std::make_unique<MockClientConnection>();
-  MockClientConnection* mock_connection = mock_connection_to_return.get();
-
-  EXPECT_CALL(*mock_factory_,
-              CreateClientConnection(::testing::_, ::testing::_))
-      .Times(1)
-      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_pre_event = connection_manager_->GetActiveConnections();
-
-  ASSERT_EQ(connections_map_pre_event.size(), (std::size_t)1);
-
-  // send some arbitrary data to trigger an epoll event
-  // this is to mimic the case that only part of of the full
-  // request data is sent (e.g. just the header)
-  std::string header = "header";
-  ASSERT_THAT(send(client_fd, header.data(), header.size(), 0),
-              ::testing::Eq(header.size()));
-
-  // Handle event returns CONNECTED_READ to simulate that the
-  // transaction is not complete
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(ConnectionStatus::CONNECTED_READ));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_post_header_read =
-          connection_manager_->GetActiveConnections();
-
-  // the connection should still be alive and we are back in the epoll loop
-  EXPECT_EQ(connections_map_post_header_read.size(), (std::size_t)1);
-
-  std::string payload = "rest of payload";
-  ASSERT_THAT(send(client_fd, payload.data(), payload.size(), 0),
-              ::testing::Eq(payload.size()));
-
-  // Handle event returns CONNECTED_DISPATCH to simulate that the
-  // we are waiting on the rpc to finish
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(ConnectionStatus::CONNECTED_DISPATCH));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_post_payload_read =
-          connection_manager_->GetActiveConnections();
-
-  // the connection should still be alive and we are back in the epoll loop
-  EXPECT_EQ(connections_map_post_payload_read.size(), (std::size_t)1);
-
-  // this should send a FIN packet to signal the connection is complete and
-  // trigger another EPOLL event
-  close(client_fd);
-
-  // signal to the manager that the connection is closed and we are done
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(ConnectionStatus::DISCONNECTED_SUCCESS));
-
-  ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
-
-  const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&
-      connections_map_post_close = connection_manager_->GetActiveConnections();
-
-  // the connection should be deleted now.
-  EXPECT_EQ(connections_map_post_close.size(), (std::size_t)0);
 }
 
 TEST_F(ConnectionManagerTest,
@@ -343,12 +138,36 @@ TEST_F(ConnectionManagerTest,
   ABSL_ASSERT_OK(connection_manager_->BindAndListen());
   ClientConnect();
 
+  std::shared_ptr<MockClientConnection> mock_connection;
+
+  EXPECT_CALL(*mock_factory_,
+              CreateClientConnection(::testing::_, ::testing::_, ::testing::_))
+      .Times(1)
+      .WillOnce([&mock_connection](
+                    int fd,
+                    std::shared_ptr<const rpc::IRpcRegistry> rpc_registry,
+                    DisconnectCallback on_disconnect) {
+        mock_connection =
+            std::make_shared<MockClientConnection>(std::move(on_disconnect));
+        return mock_connection;
+      });
+
   // loop once to accept the connection
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
   ASSERT_EQ(sleep(3), (unsigned int)0);
 
   ClientConnect();
+
+  EXPECT_CALL(*mock_factory_,
+              CreateClientConnection(::testing::_, ::testing::_, ::testing::_))
+      .Times(1);
+
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
+
+  EXPECT_CALL(*mock_connection, TimeOut())
+      .Times(1)
+      .WillOnce(
+          [&mock_connection]() { mock_connection->RunDisconnectCallback(); });
 
   connection_manager_->CloseExpiredConnections(absl::Now());
 
@@ -364,14 +183,19 @@ TEST_F(ConnectionManagerTest, ConnectionManagerRefreshesConnectionTimer) {
   ABSL_ASSERT_OK(connection_manager_->BindAndListen());
   int client_fd = ClientConnect();
 
-  std::unique_ptr<MockClientConnection> mock_connection_to_return =
-      std::make_unique<MockClientConnection>();
-  MockClientConnection* mock_connection = mock_connection_to_return.get();
+  std::shared_ptr<MockClientConnection> mock_connection;
 
   EXPECT_CALL(*mock_factory_,
-              CreateClientConnection(::testing::_, ::testing::_))
+              CreateClientConnection(::testing::_, ::testing::_, ::testing::_))
       .Times(1)
-      .WillOnce(::testing::Return(std::move(mock_connection_to_return)));
+      .WillOnce([&mock_connection](
+                    int fd,
+                    std::shared_ptr<const rpc::IRpcRegistry> rpc_registry,
+                    DisconnectCallback on_disconnect) {
+        mock_connection =
+            std::make_shared<MockClientConnection>(std::move(on_disconnect));
+        return mock_connection;
+      });
 
   // loop once to accept the connection
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
@@ -385,9 +209,7 @@ TEST_F(ConnectionManagerTest, ConnectionManagerRefreshesConnectionTimer) {
 
   // Handle event returns CONNECTED_READ to simulate that the
   // transaction is not complete
-  EXPECT_CALL(*mock_connection, HandleEvent())
-      .Times(1)
-      .WillOnce(::testing::Return(ConnectionStatus::CONNECTED_READ));
+  EXPECT_CALL(*mock_connection, HandleEvent()).Times(1);
 
   ABSL_ASSERT_OK(connection_manager_->LoopOnce(100));
   ASSERT_EQ(sleep(2), (unsigned int)0);
@@ -395,6 +217,7 @@ TEST_F(ConnectionManagerTest, ConnectionManagerRefreshesConnectionTimer) {
   // it has now been at least four seconds since connection. The client should
   // not be evicted though because it has only been two seconds since last
   // activity
+  EXPECT_CALL(*mock_connection, TimeOut()).Times(0);
   connection_manager_->CloseExpiredConnections(absl::Now());
 
   const absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>&

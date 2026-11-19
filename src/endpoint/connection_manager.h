@@ -17,7 +17,8 @@
 
 namespace endpoint {
 
-class ConnectionManager {
+class ConnectionManager
+    : public std::enable_shared_from_this<ConnectionManager> {
  public:
   explicit ConnectionManager(
       int port, std::shared_ptr<rpc::IRpcRegistry> rpc_registry,

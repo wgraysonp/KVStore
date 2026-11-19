@@ -17,7 +17,7 @@
 
 static const std::string log_file_path = "/tmp/kv_service_wal.log";
 
-absl::StatusOr<std::unique_ptr<endpoint::ConnectionManager>> InitService() {
+absl::StatusOr<std::shared_ptr<endpoint::ConnectionManager>> InitService() {
   ABSL_ASSIGN_OR_RETURN(std::unique_ptr<kvstore::WriteAheadLog> write_ahead_log,
                         kvstore::WriteAheadLog::CreateLog(log_file_path));
   ABSL_ASSIGN_OR_RETURN(
@@ -37,7 +37,7 @@ absl::StatusOr<std::unique_ptr<endpoint::ConnectionManager>> InitService() {
   auto timer_list =
       std::make_unique<endpoint::TimerList>(common::CLIENT_TIMEOUT_THRESHOLD);
 
-  auto connection_manager = std::make_unique<endpoint::ConnectionManager>(
+  auto connection_manager = std::make_shared<endpoint::ConnectionManager>(
       common::PORT, std::move(rpc_registry), std::move(connection_factory),
       std::move(timer_list));
 

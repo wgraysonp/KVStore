@@ -118,14 +118,13 @@ absl::Status ConnectionManager::LoopOnce(int time_out) {
 void ConnectionManager::CloseExpiredConnections(absl::Time threshold_time) {
   std::vector<int> expired_fds =
       timer_list_->ClearExpiredConnections(threshold_time);
-  for (auto fd : expired_fds) {
-    if (auto it = active_connections_.find(fd);
+  for (const auto fd : expired_fds) {
+    if (const auto it = active_connections_.find(fd);
         it == active_connections_.end()) {
       LOG(ERROR) << "Close expired connections attempted to close a "
                     "non-existant connection";
     } else {
-      it->second->WriteTimeOutMessageToClient();
-      active_connections_.erase(it);
+      it->second->TimeOut();
     }
   }
 }
@@ -171,15 +170,26 @@ absl::Status ConnectionManager::AcceptNewConnection() {
                                client_fd));
   }
 
-  auto connection =
-      connection_factory_->CreateClientConnection(client_fd, rpc_registry_);
+  DisconnectCallback on_disconnect = [weak_manager = weak_from_this(),
+                                      client_fd]() {
+    if (auto manager = weak_manager.lock()) {
+      manager->timer_list_->DeleteConnection(client_fd);
+      manager->active_connections_.erase(client_fd);
+    }
+  };
 
-  ABSL_RETURN_IF_ERROR(connection->MakeNonBlocking());
+  auto connection = connection_factory_->CreateClientConnection(
+      client_fd, rpc_registry_, std::move(on_disconnect));
 
   ABSL_RETURN_IF_ERROR(timer_list_->AddNewConnection(client_fd, absl::Now()));
-  active_connections_.emplace(client_fd, std::move(connection));
+  active_connections_.emplace(client_fd, connection);
 
   std::move(close_fd).Cancel();
+
+  // if MakeNonBlocking fails, the callback on_disconnect will be executed.
+  // Because of this, be sure to call this after adding the connection to
+  // the active connections map and timer list
+  connection->MakeNonBlocking();
   return absl::OkStatus();
 }
 
@@ -195,53 +205,14 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
                  << ". Error message: " << timer_refresh_status.ToString();
   }
 
-  absl::StatusOr<ConnectionStatus> connection_status;
-  if (auto it = active_connections_.find(client_fd);
-      it == active_connections_.end()) {
+  const auto it = active_connections_.find(client_fd);
+  if (it == active_connections_.end()) {
     LOG(WARNING) << "Client fd " << client_fd
                  << " not found in active connections map";
     return absl::OkStatus();
-  } else {
-    const std::shared_ptr<IClientConnection>& connection = it->second;
-    connection_status = connection->HandleEvent();
   }
 
-  if (!connection_status.ok()) {
-    LOG(ERROR) << "Handle Event failed with error message: "
-               << connection_status.status().ToString()
-               << " Closing connection for client fd " << client_fd;
-    timer_list_->DeleteConnection(client_fd);
-    active_connections_.erase(client_fd);
-    return absl::OkStatus();
-  }
-
-  switch (connection_status.value()) {
-    case ConnectionStatus::DISCONNECTED_ERROR:
-      LOG(INFO) << "Client " << client_fd
-                << " disconnected with error. Closing connection.";
-      timer_list_->DeleteConnection(client_fd);
-      active_connections_.erase(client_fd);
-      break;
-    case ConnectionStatus::DISCONNECTED_SUCCESS:
-      LOG(INFO) << "Client " << client_fd
-                << " disconnected successfully. Closing connection.";
-      timer_list_->DeleteConnection(client_fd);
-      active_connections_.erase(client_fd);
-      break;
-    case ConnectionStatus::CONNECTED_READ:
-    case ConnectionStatus::CONNECTED_DISPATCH:
-    case ConnectionStatus::CONNECTED_WRITE:
-      LOG(INFO) << "Event for client " << client_fd
-                << " handled successfully. Returning to epoll loop.";
-      break;
-    default:
-      timer_list_->DeleteConnection(client_fd);
-      active_connections_.erase(client_fd);
-      return absl::InternalError(absl::StrFormat(
-          "Unknown connection status when handling event for client %d. "
-          "Closing connection. This should never happend.",
-          client_fd));
-  }
+  it->second->HandleEvent();
 
   return absl::OkStatus();
 }

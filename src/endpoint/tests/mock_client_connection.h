@@ -15,29 +15,39 @@ namespace endpoint {
 
 class MockClientConnection : public IClientConnection {
  public:
-  MockClientConnection() {
-    ON_CALL(*this, MakeNonBlocking())
-        .WillByDefault(::testing::Return(absl::OkStatus()));
+  MockClientConnection(DisconnectCallback on_disconnect)
+      : on_disconnect_(std::move(on_disconnect)) {}
+
+  MOCK_METHOD((void), MakeNonBlocking, (), (override));
+  MOCK_METHOD((void), HandleEvent, (), (override));
+  MOCK_METHOD((void), TimeOut, (), (override));
+
+  void RunDisconnectCallback() {
+    if (on_disconnect_) on_disconnect_();
   }
 
-  MOCK_METHOD((absl::Status), MakeNonBlocking, (), (override));
-  MOCK_METHOD((absl::StatusOr<ConnectionStatus>), HandleEvent, (), (override));
-  MOCK_METHOD((void), WriteTimeOutMessageToClient, (), (override));
+ private:
+  DisconnectCallback on_disconnect_;
 };
 
 class MockClientConnectionFactory : public IClientConnectionFactory {
  public:
   MockClientConnectionFactory() {
-    ON_CALL(*this, CreateClientConnection(::testing::_, ::testing::_))
-        .WillByDefault([]() {
-          auto mock_connection = std::make_shared<MockClientConnection>();
+    ON_CALL(*this,
+            CreateClientConnection(::testing::_, ::testing::_, ::testing::_))
+        .WillByDefault([](int client_fd,
+                          std::shared_ptr<const rpc::IRpcRegistry> rpc_registry,
+                          DisconnectCallback on_disconnect) {
+          auto mock_connection =
+              std::make_shared<MockClientConnection>(std::move(on_disconnect));
           return mock_connection;
         });
   }
 
   MOCK_METHOD((std::shared_ptr<IClientConnection>), CreateClientConnection,
               (int client_fd,
-               std::shared_ptr<const rpc::IRpcRegistry> rpc_registry),
+               std::shared_ptr<const rpc::IRpcRegistry> rpc_registry,
+               DisconnectCallback on_disconnect),
               (override));
 };
 }  // namespace endpoint

@@ -19,42 +19,58 @@
 
 namespace endpoint {
 
-absl::Status ClientConnection::MakeNonBlocking() {
-  ABSL_RETURN_IF_ERROR(common::SetNonBlocking(client_fd_));
-  return absl::OkStatus();
+void ClientConnection::MakeNonBlocking() {
+  if (absl::Status status = common::SetNonBlocking(client_fd_); !status.ok()) {
+    LOG(ERROR) << "Failed to set client connection to non-blocking mode. "
+                  "Disconnecting.";
+    HandleDisconnect(absl::InternalError(""));
+  }
 }
 
-absl::StatusOr<ConnectionStatus> ClientConnection::HandleEvent() {
+void ClientConnection::HandleEvent() {
+  // shared pointer to self to keep this alive if the callback
+  // on_disconnect_ runs before HandleEvent finishes
+  auto self = shared_from_this();
+
   if (client_fd_ == -1) {
-    return absl::FailedPreconditionError("Client file descriptor is invalid");
+    LOG(ERROR) << "HandleEvent called with invalid file descriptor.";
+    HandleDisconnect(absl::InternalError(""));
+    return;
   }
   if (connection_status_ == ConnectionStatus::DISCONNECTED_ERROR ||
       connection_status_ == ConnectionStatus::DISCONNECTED_SUCCESS) {
-    return absl::FailedPreconditionError(
-        "ClientConnection is in a disconnected state and should be deleted.");
+    LOG(ERROR)
+        << "HandleEvent called with ClientConnection in disconnected state.";
+    HandleDisconnect(absl::InternalError(""));
+    return;
+  }
+  if (connection_status_ == ConnectionStatus::CONNECTED_DISPATCH) {
+    LOG(INFO) << "Client sent data during dispatch state. Evicting client.";
+    HandleDisconnect(absl::FailedPreconditionError(
+        "Invalid data transmission recieved while processing request."));
+    return;
   }
 
   while (true) {
     if (connection_status_ == ConnectionStatus::CONNECTED_READ) {
       connection_status_ = ProcessReadStage();
       if (connection_status_ != ConnectionStatus::CONNECTED_DISPATCH) {
-        return connection_status_;
+        return;
       }
     } else if (connection_status_ == ConnectionStatus::CONNECTED_DISPATCH) {
       connection_status_ = ProcessDispatchStage();
       if (connection_status_ != ConnectionStatus::CONNECTED_WRITE) {
-        return connection_status_;
+        return;
       }
     } else if (connection_status_ == ConnectionStatus::CONNECTED_WRITE) {
       connection_status_ = ProcessWriteStage();
       break;
     }
   }
-  return connection_status_;
 }
 
-void ClientConnection::WriteTimeOutMessageToClient() {
-  HandleError(absl::DeadlineExceededError("Connection Timed Out"));
+void ClientConnection::TimeOut() {
+  HandleDisconnect(absl::DeadlineExceededError("Connection Timed Out"));
 }
 
 void ClientConnection::SetWriteBuffer(std::string response_bytes) {
@@ -68,7 +84,7 @@ void ClientConnection::SetWriteBuffer(std::string response_bytes) {
 ConnectionStatus ClientConnection::ProcessReadStage() {
   absl::StatusOr<common::ReadState> read_status = PerformClientRead();
   if (!read_status.ok()) {
-    HandleDisconnectOnError(read_status.status());
+    HandleDisconnect(read_status.status());
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
   common::ReadState read_state = std::move(read_status).value();
@@ -81,10 +97,11 @@ ConnectionStatus ClientConnection::ProcessReadStage() {
                 << " interrupted by EAGAIN";
       return ConnectionStatus::CONNECTED_READ;
     case common::ReadState::kEOF:
+      HandleDisconnect();
       return ConnectionStatus::DISCONNECTED_SUCCESS;
     default:
       LOG(ERROR) << "State unknown in ProcessReadState. Disconnecting";
-      HandleDisconnectOnError(absl::InternalError(""));
+      HandleDisconnect(absl::InternalError(""));
       return ConnectionStatus::DISCONNECTED_ERROR;
   }
 }
@@ -93,32 +110,28 @@ ConnectionStatus ClientConnection::ProcessDispatchStage() {
   absl::StatusOr<rpc::RawMessage> move_client_data_status =
       MoveClientReadDataToRawMessage();
   if (!move_client_data_status.ok()) {
-    HandleDisconnectOnError(move_client_data_status.status());
+    HandleDisconnect(move_client_data_status.status());
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
 
   rpc::RawMessage msg = std::move(move_client_data_status).value();
 
-  // TODO: figure out how to handle the disconnect if this callback if there is
-  // an error in the callback. If everything is single threaded, and connection_status_
-  // is set after HandleRequest returns, that may work. But if it happens synchronously
-  // it will be overwritten when ProcessDispatchState() returns.
-  //
-  // ANSWER: have the connection manager construct the ClientConnection with 
-  // and callback that deletes it from the hashmap
   absl::AnyInvocable<void(absl::StatusOr<std::string>)> on_complete =
-      [this](absl::StatusOr<std::string> response) {
-        if(!response.status().ok()){
-          HandleDisconnectOnError(response.status());
-          return;
+      [weak_connection =
+           weak_from_this()](absl::StatusOr<std::string> response) {
+        if (auto connection = weak_connection.lock()) {
+          if (!response.status().ok()) {
+            connection->HandleDisconnect(response.status());
+            return;
+          }
+          connection->SetWriteBuffer(std::move(response).value());
         }
-        SetWriteBuffer(std::move(response).value());
       };
 
   absl::Status dispatch_request_status =
       rpc_registry_->DispatchRequest(std::move(msg), std::move(on_complete));
   if (!dispatch_request_status.ok()) {
-    HandleDisconnectOnError(dispatch_request_status);
+    HandleDisconnect(dispatch_request_status);
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
   return ConnectionStatus::CONNECTED_WRITE;
@@ -129,7 +142,7 @@ ConnectionStatus ClientConnection::ProcessWriteStage() {
   if (!write_status.ok()) {
     // pass no arguments here to bypass writing error code to client
     // since we failed in write state
-    HandleDisconnectOnError();
+    HandleDisconnect();
     return ConnectionStatus::DISCONNECTED_ERROR;
   }
 
@@ -329,16 +342,20 @@ ClientConnection::MoveClientReadDataToRawMessage() {
   return msg;
 }
 
-void ClientConnection::HandleDisconnectOnError(const absl::Status& status) {
-  if (!status.ok()) {
-    HandleError(status);
+void ClientConnection::HandleDisconnect(const absl::Status& status) {
+  if (disconnected_) return;
+
+  disconnected_ = true;
+  if (!status.ok() && client_fd_ != -1) {
+    HandleErrorMessageWrite(status);
   }
   Reset();
   close(client_fd_);
   client_fd_ = -1;
+  on_disconnect_();
 }
 
-void ClientConnection::HandleError(const absl::Status& status) {
+void ClientConnection::HandleErrorMessageWrite(const absl::Status& status) {
   switch (status.code()) {
     case absl::StatusCode::kCancelled:
     case absl::StatusCode::kUnavailable:
@@ -348,6 +365,7 @@ void ClientConnection::HandleError(const absl::Status& status) {
     case absl::StatusCode::kInvalidArgument:
     case absl::StatusCode::kOutOfRange:
     case absl::StatusCode::kNotFound:
+    case absl::StatusCode::kFailedPrecondition:
       if (absl::Status error_write_status =
               common::WriteErrorMessageToClient(status.ToString(), client_fd_);
           !error_write_status.ok()) {

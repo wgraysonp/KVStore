@@ -140,11 +140,7 @@ void ConnectionManager::ProcessActiveEpollEvents(
                    << status.message();
       }
     } else {
-      if (absl::Status status = HandleExistingClientEvent(event);
-          !status.ok()) {
-        LOG(ERROR) << "HandleExistingClientEvent failed. Error message: "
-                   << status.message();
-      }
+      HandleExistingClientEvent(event);
     }
   }
 }
@@ -193,7 +189,7 @@ absl::Status ConnectionManager::AcceptNewConnection() {
   return absl::OkStatus();
 }
 
-absl::Status ConnectionManager::HandleExistingClientEvent(
+void ConnectionManager::HandleExistingClientEvent(
     const epoll_event& ev) {
   const int client_fd = ev.data.fd;
 
@@ -209,11 +205,8 @@ absl::Status ConnectionManager::HandleExistingClientEvent(
   if (it == active_connections_.end()) {
     LOG(WARNING) << "Client fd " << client_fd
                  << " not found in active connections map";
-    return absl::OkStatus();
+    return;
   }
-
   it->second->HandleEvent();
-
-  return absl::OkStatus();
 }
 }  // namespace endpoint

@@ -62,7 +62,7 @@ class ConnectionManager
   // accept a new client connection
   absl::Status AcceptNewConnection();
 
-  absl::Status HandleExistingClientEvent(const epoll_event& ev);
+  void HandleExistingClientEvent(const epoll_event& ev);
 
   std::vector<epoll_event> events_;
   absl::flat_hash_map<int, std::shared_ptr<IClientConnection>>

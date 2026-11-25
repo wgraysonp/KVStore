@@ -9,6 +9,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "src/common/consts.h"
 #include "src/common/utils/socket_utils.h"
 
 namespace endpoint {
@@ -19,7 +20,6 @@ enum class ServiceIOStage {
   REQUEST_ID = 3,
   PAYLOAD = 4,
 };
-
 
 struct ServiceIOPackage {
   std::string network_order_size_header;
@@ -45,10 +45,15 @@ class IServiceConnection {
 
 class ServiceConnection : public IServiceConnection {
  public:
-  ServiceConnection(std::string ip_address, int port)
-      : ip_address_(std::move(ip_address)), port_(port) {}
+  ServiceConnection(int service_fd)
+      : service_fd_(service_fd) {
+    read_buffer_.reserve(common::READ_BUFFER_SIZE);
+  }
 
-  absl::Status Connect();
+  ~ServiceConnection() override {
+    if (service_fd_ != -1) close(service_fd_);
+  }
+
   absl::Status SendQueuedPackages() override;
   absl::Status Receive() override;
   absl::Status QueueOutboundRequest(
@@ -62,8 +67,7 @@ class ServiceConnection : public IServiceConnection {
   std::queue<ServiceIOPackage> outbound_package_queue_;
   absl::flat_hash_map<uint32_t, absl::AnyInvocable<void(std::string)>>
       request_id_to_callback_map_;
-  std::string ip_address_;
-  int port_;
+  std::string read_buffer_;
   int service_fd_ = -1;
 };
 }  // namespace endpoint

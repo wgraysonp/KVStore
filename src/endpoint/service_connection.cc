@@ -8,6 +8,7 @@
 #include <string>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -16,9 +17,7 @@
 #include "src/common/utils/socket_utils.h"
 
 namespace endpoint {
-
 namespace {
-
 absl::StatusOr<common::WriteState> WriteSingleStage(
     absl::string_view payload, std::size_t& prev_bytes_written, int fd) {
   std::size_t total_bytes = payload.size();
@@ -32,24 +31,20 @@ absl::StatusOr<common::WriteState> WriteSingleStage(
 
   return write_result.state;
 }
-
 }  // namespace
 
-absl::Status ServiceConnection::Connect() {
-  service_fd_ = socket(AF_INET, SOCK_STREAM, 0);
-  if (service_fd_ < 0) {
-    return absl::ErrnoToStatus(errno, "socket failed.");
+absl::Status ServiceConnection::Receive() {
+  read_buffer_.resize(common::READ_BUFFER_SIZE);
+  ABSL_ASSIGN_OR_RETURN(common::ReadResult read_result,
+                        common::ReadFromClient(
+                            read_buffer_, 0, read_buffer_.size(), service_fd_));
+  if (read_result.state == common::ReadState::kEOF) {
+    LOG(INFO) << "Dropped connectiom with peer service at fd: " << service_fd_;
+    return absl::OkStatus();
   }
 
-  sockaddr_in serv_addr{};
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(port_);
-  inet_pton(AF_INET, ip_address_.c_str(), &serv_addr.sin_addr);
+  // PARSE BUFFER HERE
 
-  if (connect(service_fd_, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) <
-      0) {
-    return absl::ErrnoToStatus(errno, "connect failed.");
-  }
   return absl::OkStatus();
 }
 
@@ -90,9 +85,9 @@ absl::Status ServiceConnection::QueueOutboundRequest(
   std::string request_id_bytes =
       common::ConvertUint32ToNetworkBytes(request_id);
 
-  outbound_package_queue_.emplace(std::move(header_bytes), std::move(rpc_id_bytes),
-                               std::move(request_id_bytes),
-                               std::move(request_bytes));
+  outbound_package_queue_.emplace(
+      std::move(header_bytes), std::move(rpc_id_bytes),
+      std::move(request_id_bytes), std::move(request_bytes));
   return absl::OkStatus();
 }
 

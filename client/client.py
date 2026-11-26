@@ -2,6 +2,7 @@ import socket
 import sys
 import traceback
 import struct
+import time
 import typing
 
 from absl import app
@@ -82,10 +83,16 @@ def main(argv: list[str]) -> None:
         print(f"Connecting to {FLAGS.server_IP}:{FLAGS.server_port}...")
         client_socket.connect((FLAGS.server_IP, FLAGS.server_port))
 
-        send_payload(client_socket)
+        try:
+            send_payload(client_socket)
+        except BrokenPipeError:
+            print(
+                f"Broken Pipe Error. Still attempting to read what was sent by server."
+            )
+        except Exception as e:
+            raise
 
         response_text = read_server_response(client_socket)
-
         print(f"Recieved from server: {response_text}")
 
     except Exception as e:

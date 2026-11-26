@@ -1,9 +1,5 @@
 #include "src/endpoint/service_connection.h"
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-
 #include <cstdint>
 #include <string>
 
@@ -38,8 +34,9 @@ absl::Status ServiceConnection::Receive() {
   ABSL_ASSIGN_OR_RETURN(common::ReadResult read_result,
                         common::ReadFromClient(
                             read_buffer_, 0, read_buffer_.size(), service_fd_));
+  
   if (read_result.state == common::ReadState::kEOF) {
-    LOG(INFO) << "Dropped connectiom with peer service at fd: " << service_fd_;
+    LOG(INFO) << "Dropped connection with peer service at fd: " << service_fd_;
     return absl::OkStatus();
   }
 

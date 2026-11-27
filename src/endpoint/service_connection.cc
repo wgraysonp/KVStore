@@ -135,11 +135,13 @@ absl::Status ServiceConnection::HandleInboundRequests() {
                             read_buffer_, 0, read_buffer_.size(), service_fd_));
 
   if (read_result.state == common::ReadState::kEOF) {
+    // maybe close this here? can I somehow keep this alive and reconnect?
     LOG(INFO) << "Dropped connection with peer service at fd: " << service_fd_;
+    service_fd_ = -1;
     return absl::OkStatus();
   }
 
-  // PARSE BUFFER HERE
+  ClearReadBuffer();
 
   return absl::OkStatus();
 }
@@ -246,7 +248,7 @@ absl::StatusOr<common::WriteState> ServiceConnection::WriteSinglePackage(
                       static_cast<int>(mutable_outbound_package.stage)));
 }
 
-absl::Status ServiceConnection::ClearReadBuffer() {
+void ServiceConnection::ClearReadBuffer() {
   std::size_t buff_size = read_buffer_.size();
   std::size_t buff_offset = 0;
 
@@ -261,5 +263,7 @@ absl::Status ServiceConnection::ClearReadBuffer() {
     buff_offset += FillSinglePackageFromReadBuffer(
         inbound_package_queue_.back(), buffer_view);
   }
+
+  read_buffer_.clear();
 }
 }  // namespace endpoint

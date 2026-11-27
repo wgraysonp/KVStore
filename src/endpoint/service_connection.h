@@ -19,6 +19,7 @@ enum class ServiceIOStage {
   RPC_ID = 2,
   REQUEST_ID = 3,
   PAYLOAD = 4,
+  COMPLETE = 5,
 };
 
 struct ServiceIOPackage {
@@ -36,8 +37,8 @@ struct ServiceIOPackage {
 class IServiceConnection {
  public:
   virtual ~IServiceConnection() = default;
-  virtual absl::Status SendQueuedPackages() = 0;
-  virtual absl::Status Receive() = 0;
+  virtual absl::Status SendOutboundRequests() = 0;
+  virtual absl::Status HandleInboundRequests() = 0;
   virtual absl::Status QueueOutboundRequest(
       uint32_t rpc_id, uint32_t request_id, std::string request_bytes,
       absl::AnyInvocable<void(std::string)> request_callback) = 0;
@@ -45,8 +46,7 @@ class IServiceConnection {
 
 class ServiceConnection : public IServiceConnection {
  public:
-  ServiceConnection(int service_fd)
-      : service_fd_(service_fd) {
+  ServiceConnection(int service_fd) : service_fd_(service_fd) {
     read_buffer_.reserve(common::READ_BUFFER_SIZE);
   }
 
@@ -54,8 +54,8 @@ class ServiceConnection : public IServiceConnection {
     if (service_fd_ != -1) close(service_fd_);
   }
 
-  absl::Status SendQueuedPackages() override;
-  absl::Status Receive() override;
+  absl::Status SendOutboundRequests() override;
+  absl::Status HandleInboundRequests() override;
   absl::Status QueueOutboundRequest(
       uint32_t rpc_id, uint32_t request_id, std::string request_bytes,
       absl::AnyInvocable<void(std::string)> request_callback) override;
@@ -63,8 +63,10 @@ class ServiceConnection : public IServiceConnection {
  private:
   absl::StatusOr<common::WriteState> WriteSinglePackage(
       ServiceIOPackage& mutable_outbound_package);
+  void ClearReadBuffer();
 
   std::queue<ServiceIOPackage> outbound_package_queue_;
+  std::queue<ServiceIOPackage> inbound_package_queue_;
   absl::flat_hash_map<uint32_t, absl::AnyInvocable<void(std::string)>>
       request_id_to_callback_map_;
   std::string read_buffer_;
